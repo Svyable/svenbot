@@ -1,0 +1,3 @@
+{"id":"short_fact","category":"reasoning","prompt":"Explain why the sky appears blue in two sentences."}
+{"id":"summarize","category":"writing","prompt":"Give three practical reasons to run an assistant locally."}
+{"id":"code","category":"programming","prompt":"Write a Python function that returns the sum of a list of integers."}

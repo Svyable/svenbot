@@ -19,6 +19,16 @@ MAX_BODY = 262_144
 
 def handler_factory(settings: Settings, db: str):
     class Handler(BaseHTTPRequestHandler):
+        def _trusted_request(self) -> bool:
+            """Reject DNS rebinding and browser-origin requests to a private API."""
+            hosts = self.headers.get_all("Host", [])
+            allowed = {f"127.0.0.1:{self.server.server_port}",
+                       f"localhost:{self.server.server_port}"}
+            if len(hosts) != 1 or hosts[0].lower() not in allowed or "Origin" in self.headers:
+                self._json(403, {"error": "Local API rejects untrusted Host or Origin headers"})
+                return False
+            return True
+
         def _json(self, code, data):
             raw = json.dumps(data).encode("utf-8")
             self.send_response(code)
@@ -30,6 +40,8 @@ def handler_factory(settings: Settings, db: str):
             self.wfile.write(raw)
 
         def do_GET(self):
+            if not self._trusted_request():
+                return
             if self.path == "/health":
                 self._json(200, {"status": "ok", "scope": "loopback"})
             elif self.path == "/v1/models":
@@ -38,6 +50,11 @@ def handler_factory(settings: Settings, db: str):
                 self._json(404, {"error": "Unknown endpoint"})
 
         def do_POST(self):
+            if not self._trusted_request():
+                return
+            if self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "application/json":
+                self._json(415, {"error": "Content-Type must be application/json"})
+                return
             if self.path != "/v1/chat/completions":
                 self._json(404, {"error": "Unknown endpoint"})
                 return
