@@ -35,6 +35,15 @@ def parser() -> argparse.ArgumentParser:
     index.add_argument("path")
     index.add_argument("--workspace", default=".")
     index.add_argument("--db", default=str(default_db_path()))
+    purge = subs.add_parser("purge", help="delete indexed files and saved chats for a workspace")
+    purge.add_argument("--workspace", required=True)
+    purge.add_argument("--db", default=str(default_db_path()))
+    purge.add_argument("--yes", action="store_true", help="confirm irreversible workspace data removal")
+    bench = subs.add_parser("bench", parents=[common], help="local latency benchmark; no prompt text in reports")
+    bench.add_argument("--prompts", required=True, help="explicit JSONL fixture file")
+    bench.add_argument("--runs", type=int, default=3, help="measured repetitions per prompt")
+    bench.add_argument("--warmup", type=int, default=1, help="unmeasured warmup calls")
+    bench.add_argument("--output", required=True, help="write JSON report to this path")
     search = subs.add_parser("search", help="search local indexed files")
     search.add_argument("query")
     search.add_argument("--workspace", default=".")
@@ -60,8 +69,10 @@ def emit(answer, verbose: bool):
     print(answer.text)
     if verbose:
         print(f"[backend: {answer.backend}]", file=sys.stderr)
+        for attempt in answer.attempts:
+            print(f"[route: {attempt.backend} {attempt.status} {attempt.elapsed_ms:.1f} ms]", file=sys.stderr)
         for i, h in enumerate(answer.sources, 1):
-            print(f"[source {i}: {h.path}:{h.line}]", file=sys.stderr)
+            print(f"[source {i}: {h.path}:{h.line}-{h.end_line or h.line}]", file=sys.stderr)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -105,11 +116,36 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"Indexed {count} files; skipped {skipped}. Workspace: {workspace_key(args.workspace)}")
             finally:
                 store.close()
+        elif args.command == "purge":
+            if not args.yes:
+                raise ValueError("Pass --yes to delete all indexed files and saved chats for this workspace")
+            store = Store(args.db)
+            try:
+                count, messages = store.clear_workspace(args.workspace)
+                print(f"Deleted {count} indexed files and {messages} messages for {workspace_key(args.workspace)}")
+            finally:
+                store.close()
+        elif args.command == "bench":
+            from .benchmark import load_prompts, run_benchmark, save_report
+            if args.session:
+                raise ValueError("Benchmarks cannot use --session")
+            prompts = load_prompts(args.prompts)
+            engine, store = make_engine(args)
+            try:
+                report = run_benchmark(engine, prompts, runs=args.runs, warmup=args.warmup)
+            finally:
+                if store:
+                    store.close()
+            save_report(report, args.output)
+            print(f"Wrote {report['successful_samples']} timing samples, "
+                  f"{report['failed_samples']} errors to {args.output}")
+            if report["failed_samples"]:
+                return 1
         elif args.command == "search":
             store = Store(args.db)
             try:
                 for hit in store.search(args.workspace, args.query):
-                    print(f"{hit.path}:{hit.line}\n{hit.excerpt}\n")
+                    print(f"{hit.path}:{hit.line}-{hit.end_line or hit.line} [chunk {hit.chunk_id}]\n{hit.excerpt}\n")
             finally:
                 store.close()
         elif args.command == "doctor":

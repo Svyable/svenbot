@@ -40,7 +40,7 @@ def request_json(base_url: str, route: str, payload: dict | None = None,
         def redirect_request(self, req, fp, code, msg, headers, newurl):
             raise BackendError("Backend attempted an HTTP redirect; refusing to follow it")
 
-    opener = urllib.request.build_opener(NoRedirect)
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect)
     try:
         with opener.open(req, timeout=timeout) as response:
             if response.status != 200:
