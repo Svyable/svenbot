@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 — Proof-carrying extractive evidence
+
+- New opt-in `svenbot evidence` and `svenbot verify` commands: deterministic offline selection or local-model nomination of exact quoted text with path, line span, character offsets, and source/quote digests.
+- New `svenbot evidence-eval` offline adversarial JSONL contract harness, pinned synthetic fixtures, and research protocol.
+- No changes to generative `ask`/`chat`/HTTP API. No claim of semantic truth, cryptographic authentication, or scientific originality.
+- Backward-compatible indexed SQLite data; existing chunk IDs and migration retained.
+
 ## 0.2.0 — local performance lab and retrieval integrity
 
 - Added an explicit JSONL local benchmark command with warmups, measured repetitions, per-backend latency summaries, sanitized errors and a machine-readable report. Benchmark outputs never contain prompt or completion text. It does not measure answer quality or external model-server memory.

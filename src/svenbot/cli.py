@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -44,6 +45,18 @@ def parser() -> argparse.ArgumentParser:
     bench.add_argument("--runs", type=int, default=3, help="measured repetitions per prompt")
     bench.add_argument("--warmup", type=int, default=1, help="unmeasured warmup calls")
     bench.add_argument("--output", required=True, help="write JSON report to this path")
+    evidence = subs.add_parser("evidence", parents=[common],
+                               help="extract verifiable quotes from indexed sources; never synthesize claims")
+    evidence.add_argument("question", help="question for evidence selection")
+    evidence.add_argument("--selector", choices=["lexical", "model"], default="lexical",
+                          help="offline deterministic selection, or local model nomination")
+    evidence.add_argument("--output", metavar="JSON", help="optionally save a new, non-overwriting receipt")
+    verify = subs.add_parser("verify", help="check a receipt against the current local indexed snapshot")
+    verify.add_argument("receipt", help="path to an evidence JSON receipt")
+    verify.add_argument("--workspace", required=True)
+    verify.add_argument("--db", default=str(default_db_path()))
+    evaluate = subs.add_parser("evidence-eval", help="offline falsification suite for the quote selection contract")
+    evaluate.add_argument("--cases", required=True, help="JSONL adversarial test cases")
     search = subs.add_parser("search", help="search local indexed files")
     search.add_argument("query")
     search.add_argument("--workspace", default=".")
@@ -140,6 +153,43 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Wrote {report['successful_samples']} timing samples, "
                   f"{report['failed_samples']} errors to {args.output}")
             if report["failed_samples"]:
+                return 1
+        elif args.command == "evidence":
+            from .evidence import create_receipt, save_receipt
+            if not args.workspace:
+                raise ValueError("evidence requires --workspace with explicitly indexed files")
+            if args.session:
+                raise ValueError("evidence mode does not access or persist conversations; omit --session")
+            store = Store(args.db)
+            try:
+                settings = Settings(backend=args.backend, model=args.model,
+                                    ollama_url=args.ollama_url, openai_url=args.openai_url,
+                                    allow_remote=args.allow_remote)
+                receipt = create_receipt(store, args.workspace, args.question,
+                                         selector=args.selector, settings=settings)
+                if args.output:
+                    save_receipt(receipt, args.output)
+                for entry in receipt["evidence"]:
+                    print(f"{entry['path']}:{entry['line_start']}-{entry['line_end']} "
+                          f"[chunk {entry['chunk_id']}]\n{json.dumps(entry['quote'], ensure_ascii=False)}\n")
+                if args.output:
+                    print(f"Saved {len(receipt['evidence'])} verifiable quotes to {args.output}")
+            finally:
+                store.close()
+        elif args.command == "verify":
+            from .evidence import load_receipt, verify_receipt
+            store = Store(args.db)
+            try:
+                count = verify_receipt(store, args.workspace, load_receipt(args.receipt))
+                print(f"Verified {count} exact quotes against current indexed snapshot.")
+            finally:
+                store.close()
+        elif args.command == "evidence-eval":
+            from .evaluation import evaluate_contract
+            report = evaluate_contract(args.cases)
+            print(f"Evidence contract: {report['passed']}/{report['cases']} cases passed; "
+                  f"false accepts={report['false_accepts']}, false rejects={report['false_rejects']}")
+            if report["failed"]:
                 return 1
         elif args.command == "search":
             store = Store(args.db)
