@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "svenbot"
+version = "0.1.0"
+description = "Local-first AI with transparent backends, optional PyBot rules, and private retrieval"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [{name = "Svyable"}]
+dependencies = []
+keywords = ["local-ai", "ollama", "llama-cpp", "chatbot", "retrieval"]
+
+[project.scripts]
+svenbot = "svenbot.cli:main"
+
+[project.urls]
+Repository = "https://github.com/Svyable/svenbot"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

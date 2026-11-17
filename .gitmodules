@@ -1,0 +1,3 @@
+[submodule "upstream/pybot"]
+    path = upstream/pybot
+    url = https://github.com/huggingface/pybot.git
