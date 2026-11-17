@@ -4,7 +4,7 @@
 
 Svenbot is an independent, local-first orchestration project inspired by [Hugging Face PyBot](https://github.com/huggingface/pybot). PyBot took a wonderfully strange approach: hundreds of thousands of lines of hand-written/generated Python rules instead of model weights. Svenbot keeps that experiment available as an **optional, pinned upstream submodule**, and adds actual on-device LLM inference, local retrieval, opt-in conversation persistence, and a small local HTTP interface.
 
-It is a **working 0.6 beta, not yet the best local AI assistant**. We intend to earn that through reproducible benchmarks, latency and memory efficiency, extensibility, and safety—not marketing claims.
+It is a **working 0.7 beta, not yet the best local AI assistant**. We intend to earn that through reproducible benchmarks, latency and memory efficiency, extensibility, and safety—not marketing claims.
 
 ## Quick start
 
@@ -84,6 +84,25 @@ svenbot chat --backend ollama --no-stream
 
 The existing non-streaming OpenAI-style API still works; callers may now send `"stream": true` to `/v1/chat/completions` for text-only SSE chunks ending with `data: [DONE]`. This is a subset of the API, not full feature parity. The web and API server are **127.0.0.1 only** and unauthenticated: do not port-forward them or put them behind a public proxy. Same-origin browser requests are allowed; cross-origin requests, unexpected Host headers, and non-JSON writes are rejected. Source retrieval requires explicitly indexed workspace files. The UI does not expose `evidence` receipts; use the CLI for verified quotations.
 
+## Temporary browser document Q&A (new in v0.7)
+
+**Attach a document, ask a question, then remove it.** In First Light, choose or drag one `.docx`, `.html`/`.htm`, `.csv`/`.tsv`, or text-based `.pdf` file into the toolbar immediately above the composer. No folder scan, extension or web account is needed.
+
+```bash
+# PDF support is optional; Word/HTML/CSV/TSV work without pypdf.
+python -m pip install -e '.[documents]'
+svenbot web --backend ollama --model YOUR_INSTALLED_MODEL --open-browser
+# Attach a file in the browser, ask questions, and click Remove document.
+```
+
+This new browser lane is **temporary** and independent of the persistent Knowledge library. A file is deliberately selected in the browser; Svenbot extracts its text on the loopback server and holds it only in process memory. No originals, prompts, or responses are added to SQLite or browser storage by the document workflow. The server enforces **1 MB input**, **180,000 extracted characters**, **four active documents**, and **20-minute fixed expiration** per attachment. `Remove document` revokes its opaque handle and clears the displayed chat; the server also discards expired documents opportunistically. Closing a browser tab does **not** instantly revoke its handle; it expires or is removed explicitly, and Python memory removal is not forensic erasure. Previously sent text may still exist in the separate local model server's memory or logs.
+
+**Grounding:** Each document question builds an isolated, temporary SQLite FTS5 index and chooses up to six relevant text excerpts. For broad questions without lexical matches, it uses initial excerpts instead. The model sees citations and is told to avoid claims unsupported by them; this does **not** prove that its answer is factually correct or logically entailed. The browser lists cited excerpt locations in extracted text, not guaranteed Word page layout. Use `svenbot evidence` and `verify` on an explicitly indexed document for independently validated **exact quotes**. Large documents may be incompletely represented by the selected context.
+
+**Security:** If the Svenbot server is started with `--allow-remote`, browser document upload and document Q&A are **refused**, even for a loopback URL. Restart without that option. The feature never automatically sends files to a remote endpoint, saves them to the library, downloads a model or executes embedded content. Its random handle is a temporary bearer capability, not user authentication; the loopback server remains accessible to other processes on the computer. Do not expose the listener to the public Internet. PDF parsing is best effort and bounded by input/pages/text limits but **is not CPU-time sandboxed**; use trusted files and avoid hostile PDFs until process-level isolation is shipped. Image-only/scanned PDFs need separate OCR and currently fail with an explicit error.
+
+**Compatibility:** v0.6 `ask-file` is still available for terminal-only one-shot private Q&A. v0.7's browser attachment does not yet offer a persistent **Save to library** control: persistent indexing remains an explicit `svenbot index` CLI action, and no attachment is silently saved.
+
 ## Work with real documents (new in v0.6)
 
 Svenbot now extracts **Word `.docx`, HTML, CSV/TSV, and text-based PDF** files on your own machine. Word, HTML and CSV/TSV use only the Python standard library. PDFs use the optional local `pypdf` parser; Svenbot does not perform OCR, download parsing services, execute Word macros, evaluate CSV spreadsheet formulas, run embedded scripts, or fetch linked resources.
@@ -112,7 +131,7 @@ svenbot library --workspace ~/projects/notes --json
 
 **Persistent library:** `index` stores plaintext *extracted text* in SQLite and is explicit, workspace-bound, capped at 1,000 files per invocation and limited to 8 MB per document and 1.5 million extracted characters. PDF extraction caps at 100 pages; scanned/image-only or encrypted PDFs aren't supported. `library` lists the first 500 indexed file names, hashes and chunk counts without reading documents again; `forget ... --yes` removes one indexed copy, leaving the original file untouched. Directory re-indexing can add a forgotten file again. Prior indexed documents remain after deleting/moving originals until re-index or purge. **Cited line numbers refer to extracted text rather than original Word/PDF visual line numbers**; extracted PDFs include `[PDF page N]` markers. Review indexed folders for secrets and use disk encryption for sensitive data.
 
-**Browser knowledge panel:** Start `svenbot web --workspace ~/projects/notes` and open **Knowledge**. It lists only previously indexed sources and searches FTS5 excerpts without invoking a model or indexing anything new. The `/v1/local/library` read-only and `/v1/local/search` JSON endpoints require that the server be explicitly launched with `--workspace`; they remain same-origin and localhost only. No browser-side persistence or file uploads are introduced in this release.
+**Browser knowledge panel:** Start `svenbot web --workspace ~/projects/notes` and open **Knowledge**. It lists only previously indexed sources and searches FTS5 excerpts without invoking a model or indexing anything new. The `/v1/local/library` read-only and `/v1/local/search` JSON endpoints require that the server be explicitly launched with `--workspace`; they remain same-origin and localhost only. The Knowledge panel itself never uploads or indexes files; v0.7 adds a **separate temporary attachment** in the chat composer.
 
 ## Make your files searchable (explicitly)
 
@@ -194,7 +213,7 @@ curl -s http://127.0.0.1:8765/v1/chat/completions \
   -d '{"model":"svenbot","messages":[{"role":"user","content":"Hello"}]}'
 ```
 
-The text-only `/v1/chat/completions` endpoint supports non-streaming responses and bounded SSE streaming; it follows a small subset of the OpenAI schema, plus `GET /health`, `GET /v1/models`, read-only `GET /v1/local/status` and explicitly workspace-scoped knowledge listing/search endpoints. Models and machine metadata never leave the local status endpoint unless you explicitly reconfigure the server for remote access. API calls are isolated; request histories supplied as user/assistant messages are not persisted. Tools, images, arbitrary system messages, and multi-user authentication **are not implemented**. The listener binds to `127.0.0.1` only, requires JSON requests, accepts only same-origin browser requests and rejects unrecognized `Host` values to reduce DNS rebinding/CSRF exposure, adds no permissive CORS header, and must **not** be publicly exposed or reverse-proxied as an open service. Any local process can still call it; it is not an authenticated multi-user service.
+The text-only `/v1/chat/completions` endpoint supports non-streaming responses and bounded SSE streaming; it follows a small subset of the OpenAI schema, plus `GET /health`, `GET /v1/models`, read-only `GET /v1/local/status`, explicitly workspace-scoped knowledge listing/search endpoints, and the opt-in temporary-document endpoints. Models and machine metadata never leave the local status endpoint unless you explicitly reconfigure the server for remote access. API calls are isolated; request histories supplied as user/assistant messages are not persisted. Tools, images, arbitrary system messages, and multi-user authentication **are not implemented**. The listener binds to `127.0.0.1` only, requires JSON requests, accepts only same-origin browser requests and rejects unrecognized `Host` values to reduce DNS rebinding/CSRF exposure, adds no permissive CORS header, and must **not** be publicly exposed or reverse-proxied as an open service. Any local process can still call it; it is not an authenticated multi-user service.
 
 ## Design principles
 

@@ -5,6 +5,7 @@ const form = $('prompt-form'), input = $('prompt'), sendButton = $('send');
 const stopButton = $('stop'), log = $('messages'), welcome = $('welcome');
 const scroller = $('scroll-region'), runtime = $('runtime-label');
 let history = [], busy = false, aborter = null;
+let documentId = null, documentName = null, documentBusy = false;
 
 function adjustHeight() {
   input.style.height = '0px';
@@ -12,7 +13,9 @@ function adjustHeight() {
 }
 function setBusy(active) {
   busy = active;
-  sendButton.disabled = active;
+  sendButton.disabled = active || documentBusy;
+  $('document-input').disabled = active || documentBusy;
+  $('document-clear').disabled = active || documentBusy;
   stopButton.classList.toggle('hidden', !active);
   $('composer-hint').textContent = active ? 'Generating locally…' : '↵ Send · Shift + ↵ New line';
 }
@@ -81,6 +84,76 @@ async function consumeStream(response, onData) {
     if (!finished) throw Error('Local model connection closed before completion.');
   } finally { reader.releaseLock(); }
 }
+// Browser file bytes go only to Svenbot's own loopback endpoint. No browser
+// persistence, FormData boundary parsing, CDN, or background directory crawl.
+function encodeDocument(bytes) {
+  const parts = [];
+  for (let offset = 0; offset < bytes.length; offset += 8192) {
+    parts.push(String.fromCharCode(...bytes.subarray(offset, offset + 8192)));
+  }
+  return btoa(parts.join(''));
+}
+function documentStatus(text) { $('document-status').textContent = text; }
+async function forgetTemporaryDocument(token) {
+  try {
+    await fetch('/v1/local/document/clear', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      credentials: 'omit', body: JSON.stringify({document_id: token})
+    });
+  } catch { /* The server's bounded TTL also expires abandoned handles. */ }
+}
+async function detachDocument() {
+  if (documentBusy) return;
+  const token = documentId;
+  documentId = null; documentName = null;
+  history = []; log.replaceChildren();
+  $('document-clear').classList.add('hidden');
+  documentStatus('No document attached · max 1 MB · memory only');
+  if (token) await forgetTemporaryDocument(token);
+}
+async function attachDocument(file) {
+  if (!file || busy || documentBusy) return;
+  const supported = /\.(pdf|docx|html?|csv|tsv)$/i;
+  if (!supported.test(file.name) || file.size < 1 || file.size > 1_000_000) {
+    documentStatus('Select a supported document between 1 byte and 1 MB.');
+    return;
+  }
+  documentBusy = true; setBusy(busy);
+  documentStatus('Reading document locally…');
+  try {
+    const raw = new Uint8Array(await file.arrayBuffer());
+    const response = await fetch('/v1/local/document', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      credentials: 'omit',
+      body: JSON.stringify({filename: file.name, content_base64: encodeDocument(raw)})
+    });
+    const result = await response.json();
+    if (!response.ok) throw Error(result.error || 'Document could not be attached.');
+    const previous = documentId;
+    documentId = result.document_id; documentName = result.name;
+    history = []; log.replaceChildren(); welcome.classList.remove('hidden');
+    $('document-clear').classList.remove('hidden');
+    documentStatus(`${result.name} · ${result.characters.toLocaleString()} text characters · expires in 20 min`);
+    if (previous) await forgetTemporaryDocument(previous);
+  } catch (error) {
+    documentStatus(error.message || 'Document could not be attached.');
+  } finally {
+    documentBusy = false; $('document-input').value = ''; setBusy(busy);
+  }
+}
+$('document-input').addEventListener('change', event => attachDocument(event.target.files?.[0]));
+$('document-clear').addEventListener('click', () => detachDocument());
+const dropzone = $('document-dropzone');
+dropzone.addEventListener('dragover', event => {
+  if (event.dataTransfer?.types?.includes('Files')) {
+    event.preventDefault(); dropzone.classList.add('dragover');
+  }
+});
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', event => {
+  event.preventDefault(); dropzone.classList.remove('dragover');
+  attachDocument(event.dataTransfer?.files?.[0]);
+});
 const knowledgePanel = $('knowledge-panel');
 function showKnowledge(visible) {
   knowledgePanel.classList.toggle('hidden', !visible);
@@ -141,25 +214,34 @@ $('knowledge-form').addEventListener('submit', async event => {
   } catch (error) { status.textContent = error.message; }
 });
 async function submit(prompt) {
-  if (busy || !prompt.trim()) return;
+  if (busy || documentBusy || !prompt.trim()) return;
   if (!knowledgePanel.classList.contains('hidden')) showKnowledge(false);
   const text = prompt.trim();
   input.value = ''; adjustHeight();
   welcome.classList.add('hidden');
   addMessage('user', text);
   const output = addMessage('assistant');
-  let responseText = '', backend = '', finished = false;
+  let responseText = '', backend = '', finished = false, citations = []; 
   aborter = new AbortController(); setBusy(true);
   try {
     const conversation = [...history.slice(-30), {role: 'user', content: text}];
     const response = await fetch('/v1/chat/completions', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       credentials: 'omit', signal: aborter.signal,
-      body: JSON.stringify({model: 'svenbot', stream: true, messages: conversation})
+      body: JSON.stringify({model: 'svenbot', stream: true, messages: conversation,
+                            ...(documentId ? {document_id: documentId} : {})})
     });
-    if (!response.ok) throw Error(response.status === 503 ? 'No local inference engine is ready. Check svenbot doctor.' : 'Request rejected (' + response.status + ').');
+    if (!response.ok) {
+      if (response.status === 404 && documentId) {
+        documentId = null; documentName = null;
+        $('document-clear').classList.add('hidden');
+        documentStatus('Document expired or cleared. Attach it again to ask questions.');
+      }
+      throw Error(response.status === 503 ? 'No local inference engine is ready. Check svenbot doctor.' : 'Request rejected (' + response.status + ').');
+    }
     await consumeStream(response, packet => {
       backend = packet.svenbot_backend || backend;
+      if (Array.isArray(packet.svenbot_sources)) citations = packet.svenbot_sources;
       const delta = packet.choices?.[0]?.delta?.content;
       if (typeof delta === 'string') {
         const follow = nearBottom();
@@ -173,6 +255,19 @@ async function submit(prompt) {
     history.push({role: 'user', content: text}, {role: 'assistant', content: responseText});
     history = history.slice(-30);
     completeMessage(output, responseText, backend);
+    if (documentId && citations.length) {
+      const sources = document.createElement('div');
+      sources.className = 'message-sources';
+      const label = document.createElement('strong');
+      label.textContent = 'Retrieved source excerpts · not independently verified claims';
+      sources.append(label);
+      for (const [i, item] of citations.entries()) {
+        const line = document.createElement('span');
+        line.textContent = `[source ${i + 1}] ${item.path}:${item.line}-${item.end_line}`;
+        sources.append(line);
+      }
+      output.row.append(sources);
+    }
   } catch (error) {
     output.row.classList.remove('pending'); output.row.classList.add('error');
     const message = error.name === 'AbortError' ? 'Stopped. Partial answer was not saved.' :
@@ -193,6 +288,7 @@ input.addEventListener('keydown', event => {
 stopButton.addEventListener('click', () => aborter?.abort());
 $('reset').addEventListener('click', () => {
   aborter?.abort(); history = []; log.replaceChildren(); showKnowledge(false); welcome.classList.remove('hidden');
+  detachDocument();
   input.value = ''; adjustHeight(); input.focus();
 });
 document.querySelectorAll('[data-prompt]').forEach(button => button.addEventListener('click', () => submit(button.dataset.prompt)));

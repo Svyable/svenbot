@@ -20,3 +20,23 @@
 
 .knowledge-top{background:transparent;border:1px solid #3b514a;border-radius:10px;padding:9px 12px;color:#b9e5d5;font-size:11px;white-space:nowrap;margin-left:auto;margin-right:15px}
 .knowledge-top:hover,.knowledge-top:focus-visible{background:#19312b}
+
+/* Ephemeral document drop: visible, accessible, and never uses innerHTML. */
+.document-toolbar{width:min(820px,100%);margin:0 auto 9px;padding:11px 14px;border-radius:12px;border:1px dashed #365c53;background:#0d1b1e;display:flex;flex-wrap:wrap;align-items:center;gap:10px;color:#a8c4be;font-size:11px;transition:border-color .15s,background .15s}
+.document-toolbar.dragover{border-color:#a3efcd;background:#193c35}
+.document-toolbar label{cursor:pointer;color:#c2f2db;font-size:12px;font-weight:700;white-space:nowrap}
+.document-toolbar label:hover,.document-toolbar label:focus-visible{color:#fff}
+#document-input:focus-visible+.document-attach{outline:2px solid var(--accent)}
+#document-status{flex:1;min-width:140px;overflow-wrap:anywhere;line-height:1.45}
+.document-clear{font-size:11px;border:1px solid #536e65;background:#172823;border-radius:8px;padding:7px 10px;color:#d2ecdf}
+.document-clear:disabled,.document-attach:has(+ input:disabled){opacity:.5;cursor:not-allowed}
+.document-attach:focus-within{outline:2px solid var(--accent)}
+.message-sources{font-size:11px;color:#b4d1c5;border-left:2px solid #4e796a;padding:8px 12px;line-height:1.6;overflow-wrap:anywhere}
+.message-sources strong{display:block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px}
+.message-sources span{display:block}
+@media(max-width:480px){.document-toolbar{padding:10px;gap:7px}.document-toolbar label{font-size:11px}}
+/* Keep the composer in the flex layout, never on top of scrollable chat content.
+   This fixes narrow-viewport starter prompts being covered by the file toolbar. */
+.main{height:100dvh;min-height:0}
+.composer-wrap{position:relative;bottom:auto;flex-shrink:0}
+.document-toolbar:focus-within{border-color:var(--accent);outline:1px solid var(--accent)}
