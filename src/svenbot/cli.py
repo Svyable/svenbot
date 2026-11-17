@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import sys
 from pathlib import Path
 
@@ -67,16 +68,38 @@ def parser() -> argparse.ArgumentParser:
     doctor.add_argument("--ollama-url", default=os.getenv("SVENBOT_OLLAMA_URL", "http://127.0.0.1:11434"))
     doctor.add_argument("--openai-url", default=os.getenv("SVENBOT_OPENAI_URL", "http://127.0.0.1:8080"))
     doctor.add_argument("--allow-remote", action="store_true")
+    setup = subs.add_parser("setup", help="read-only hardware and installed-model guidance")
+    setup.add_argument("--ollama-url", default=os.getenv("SVENBOT_OLLAMA_URL", "http://127.0.0.1:11434"))
+    setup.add_argument("--openai-url", default=os.getenv("SVENBOT_OPENAI_URL", "http://127.0.0.1:8080"))
+    setup.add_argument("--allow-remote", action="store_true", help="explicitly permit non-loopback probes")
+    setup.add_argument("--json", action="store_true", help="print a machine-readable read-only snapshot")
+    models = subs.add_parser("models", help="list Ollama models already installed locally")
+    models.add_argument("--ollama-url", default=os.getenv("SVENBOT_OLLAMA_URL", "http://127.0.0.1:11434"))
+    models.add_argument("--allow-remote", action="store_true")
     serve = subs.add_parser("serve", parents=[common], help="loopback web UI and chat-completion API")
     serve.add_argument("--port", type=int, default=8765)
     web = subs.add_parser("web", parents=[common], help="launch local web chat on http://127.0.0.1:8765")
     web.add_argument("--port", type=int, default=8765)
+    web.add_argument("--open-browser", action="store_true",
+                     help="open the local chat URL in your default browser")
     return p
 
 
 def make_engine(args) -> tuple[Engine, Store | None]:
     store = Store(args.db) if (args.session or args.workspace) else None
-    settings = Settings(backend=args.backend, model=args.model, ollama_url=args.ollama_url,
+    suggested_model = None
+    if args.model is None and args.backend in ("auto", "ollama"):
+        # One read-only local probe on CLI startup; never pull weights automatically.
+        # Keep this separate from an explicit --model so OpenAI fallback uses its own alias.
+        from .discovery import list_ollama_models, recommend_installed
+        try:
+            choice = recommend_installed(list_ollama_models(args.ollama_url,
+                                            allow_remote=args.allow_remote))
+            suggested_model = choice.name if choice else None
+        except BackendError:
+            pass
+    settings = Settings(backend=args.backend, model=args.model,
+                        ollama_suggested_model=suggested_model, ollama_url=args.ollama_url,
                         openai_url=args.openai_url, allow_remote=args.allow_remote,
                         session=args.session, workspace=args.workspace)
     return Engine(settings, store), store
@@ -131,7 +154,8 @@ def main(argv: list[str] | None = None) -> int:
                         emit(engine.ask(args.prompt), args.verbose)
                 elif args.command in ("serve", "web"):
                     from .server import serve
-                    serve(engine.settings, args.db, args.port)
+                    serve(engine.settings, args.db, args.port,
+                          open_browser=getattr(args, "open_browser", False))
                 else:
                     print("Svenbot — local-first AI. /reset clears this session, /exit quits.")
                     while True:
@@ -231,6 +255,42 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"{hit.path}:{hit.line}-{hit.end_line or hit.line} [chunk {hit.chunk_id}]\n{hit.excerpt}\n")
             finally:
                 store.close()
+        elif args.command == "models":
+            from .discovery import list_ollama_models
+            found = list_ollama_models(args.ollama_url, allow_remote=args.allow_remote)
+            if not found:
+                print("Ollama is reachable, but no models are installed. Run `svenbot setup` for guidance.")
+            for model in found:
+                disk = f"{model.disk_bytes / (1024**3):.2f} GiB on disk" if model.disk_bytes is not None else "size unknown"
+                print(f"{model.name}  ·  {disk}  ·  {model.parameter_size or 'unknown parameters'}  ·  {model.quantization or 'unknown quantization'}")
+        elif args.command == "setup":
+            from .discovery import survey
+            report = survey(args.ollama_url, args.openai_url, allow_remote=args.allow_remote)
+            if args.json:
+                print(json.dumps(report, indent=2))
+            else:
+                budget = report["memory_budget_bytes"]
+                print("SVENBOT FIRST RUN — read-only, no downloads")
+                print("System:", report["system"], report["machine"],
+                      f"· memory budget {budget / 1024**3:.1f} GiB" if budget else "· memory unknown")
+                print("Ollama:", report["backends"]["ollama"],
+                      f"({len(report['ollama_models'])} installed models)")
+                print("Compatible local server:", report["backends"]["openai"])
+                if report["suggested_ollama_model"]:
+                    model = report["suggested_ollama_model"]
+                    print("Suggested installed model:", model)
+                    print("  Reason: smallest local on-disk footprint, not a runtime/quality guarantee")
+                    print("  Start: svenbot web --backend ollama --model", shlex.quote(model))
+                elif report["compatible_models"]:
+                    print("Try: svenbot web --backend openai --model",
+                          shlex.quote(report["compatible_models"][0]))
+                else:
+                    if report["backends"]["ollama"] == "no-chat-candidate":
+                        print("Ollama has models, but none is an obvious chat candidate.")
+                        print("Use `svenbot models` and choose a supported model with --model.")
+                    print("No ready local model found. Install/start Ollama, then manually pull a model")
+                    print("from the official model library; no model is downloaded by Svenbot.")
+                    print("If you cloned PyBot: svenbot web --backend rules")
         elif args.command == "doctor":
             root = _upstream_root()
             print(f"PyBot rules: {'available (' + str(root) + ')' if root else 'not installed (optional submodule)'}")

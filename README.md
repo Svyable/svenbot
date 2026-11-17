@@ -4,7 +4,7 @@
 
 Svenbot is an independent, local-first orchestration project inspired by [Hugging Face PyBot](https://github.com/huggingface/pybot). PyBot took a wonderfully strange approach: hundreds of thousands of lines of hand-written/generated Python rules instead of model weights. Svenbot keeps that experiment available as an **optional, pinned upstream submodule**, and adds actual on-device LLM inference, local retrieval, opt-in conversation persistence, and a small local HTTP interface.
 
-It is a **working 0.2 foundation, not yet the best local AI assistant**. We intend to earn that through reproducible benchmarks, latency and memory efficiency, extensibility, and safety—not marketing claims.
+It is a **working 0.5 beta, not yet the best local AI assistant**. We intend to earn that through reproducible benchmarks, latency and memory efficiency, extensibility, and safety—not marketing claims.
 
 ## Quick start
 
@@ -15,14 +15,16 @@ git clone --recurse-submodules https://github.com/Svyable/svenbot.git
 cd svenbot
 python -m pip install -e .
 
-# In a separate terminal: install Ollama and start its service.
-ollama pull llama3.2
-svenbot doctor
-svenbot ask "What does local-first AI mean?" --backend ollama --model llama3.2
-svenbot chat --backend ollama --model llama3.2
+# Ollama must be installed and running separately. Svenbot checks only local endpoints.
+svenbot setup
+# If no models are installed, explicitly choose and pull a suitable model with Ollama.
+# Then Svenbot selects a small-footprint installed model when --model is omitted.
+svenbot web --open-browser
+# Or use the terminal:
+svenbot chat
 ```
 
-Ollama needs to be installed separately; it serves models on `127.0.0.1:11434` by default. Existing compatible models may be selected with `--model`. Installation and model availability depend on your hardware.
+Ollama must be installed separately; it serves models on `127.0.0.1:11434` by default. Svenbot **never pulls models automatically**. If Ollama has locally installed models, v0.5's CLI checks `/api/tags` once at startup and tentatively chooses the smallest known *on-disk footprint* unless you explicitly provide `--model`. This is **not** a benchmark-based quality selection, a guaranteed chat-compatible model, or a RAM/VRAM fit test. You can always choose a specific model. See [read-only first-run diagnostics](#first-run-setup-and-model-discovery-new-in-v05).
 
 With an OpenAI-compatible **local** server such as llama.cpp on port 8080:
 
@@ -40,14 +42,32 @@ git submodule update --init --recursive
 
 `--backend auto` (the default) tries Ollama, then the OpenAI-compatible server, then PyBot rules. It reports backend failures rather than making up a reply. `--verbose` prints the selected backend, individual attempted routes with local timings, and sources on stderr. Rule-engine memory lasts for the running process only; it is not recovered from SQLite across restarts.
 
+## First-run setup and model discovery (new in v0.5)
+
+The first-run assistant does not download weights, start daemons, change system settings or upload hardware information. It makes only bounded read-only requests to the inference endpoints you specify (loopback only by default). It reports observed RAM/cgroup limits and locally installed model names. Commands:
+
+```bash
+svenbot setup               # Human-readable readiness, model inventory and copyable launch command
+svenbot setup --json        # Machine-readable diagnostic snapshot (local names/hardware metadata)
+svenbot models              # List Ollama's already-installed models and their disk sizes
+svenbot doctor              # Original lightweight reachability checks
+svenbot web --open-browser  # Best-effort launch using a tentatively selected installed model
+svenbot web --backend ollama --model YOUR_INSTALLED_MODEL
+```
+
+When both Ollama and a compatible local server are unavailable, `setup` explains what is missing; the browser shows a helpful local-only setup panel rather than pretending inference works. The app never downloads Ollama or starts its daemon. `--allow-remote` remains an explicit privacy-compromising exception for configured endpoints. Supported metadata originates from [Ollama's List Local Models API](https://docs.ollama.com/api/tags).
+
+**Hardware caveat:** Physical RAM or cgroup limits are not free RAM, GPU VRAM, or an accurate model-serving budget. Ollama's model `size` describes its storage footprint—not exact runtime memory or chat capability. Selecting the smallest installed model is a *low-friction suggestion*, not a certification of fit or quality. Use `svenbot bench` on your actual hardware to compare candidates; choose with `--model` when quality matters.
+
 ## Talk to Svenbot in your browser (new in v0.4)
 
 A real, single-command, dependency-free local chat interface is included in the Python package. **No npm, CDN, external fonts, analytics, account, or browser storage.**
 
 ```bash
-# Start Ollama separately and download a model you can run on your machine:
-ollama pull llama3.2
-svenbot web --backend ollama --model llama3.2
+# Start Ollama separately; install a model of your choosing if needed:
+svenbot setup
+svenbot web --open-browser
+# Or pin a known model: svenbot web --backend ollama --model YOUR_MODEL
 # Open http://127.0.0.1:8765 in a browser on this computer.
 ```
 
@@ -144,7 +164,7 @@ curl -s http://127.0.0.1:8765/v1/chat/completions \
   -d '{"model":"svenbot","messages":[{"role":"user","content":"Hello"}]}'
 ```
 
-The text-only `/v1/chat/completions` endpoint supports non-streaming responses and bounded SSE streaming; it follows a small subset of the OpenAI schema, plus `GET /health` and `GET /v1/models`. API calls are isolated; request histories supplied as user/assistant messages are not persisted. Tools, images, arbitrary system messages, and multi-user authentication **are not implemented**. The listener binds to `127.0.0.1` only, requires JSON requests, accepts only same-origin browser requests and rejects unrecognized `Host` values to reduce DNS rebinding/CSRF exposure, adds no permissive CORS header, and must **not** be publicly exposed or reverse-proxied as an open service. Any local process can still call it; it is not an authenticated multi-user service.
+The text-only `/v1/chat/completions` endpoint supports non-streaming responses and bounded SSE streaming; it follows a small subset of the OpenAI schema, plus `GET /health`, `GET /v1/models` and the read-only `GET /v1/local/status` diagnostics. Models and machine metadata never leave the local status endpoint unless you explicitly reconfigure the server for remote access. API calls are isolated; request histories supplied as user/assistant messages are not persisted. Tools, images, arbitrary system messages, and multi-user authentication **are not implemented**. The listener binds to `127.0.0.1` only, requires JSON requests, accepts only same-origin browser requests and rejects unrecognized `Host` values to reduce DNS rebinding/CSRF exposure, adds no permissive CORS header, and must **not** be publicly exposed or reverse-proxied as an open service. Any local process can still call it; it is not an authenticated multi-user service.
 
 ## Design principles
 

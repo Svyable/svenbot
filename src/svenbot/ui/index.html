@@ -46,6 +46,11 @@
           <p class="welcome-eyebrow">INTELLIGENCE, WHERE YOU LIVE.</p>
           <h1>Think freely.<br><em>Stay local.</em></h1>
           <p class="intro">A private space for ideas, code, and hard questions—powered by models on your own hardware.</p>
+          <section class="setup-panel hidden" id="setup-panel" role="status" aria-live="polite">
+            <strong id="setup-title">Checking local engines</strong>
+            <p id="setup-description">Svenbot checks only the inference servers configured on this computer.</p>
+            <code id="setup-command">svenbot setup</code>
+          </section>
           <div class="suggestions" aria-label="Suggested first questions">
             <button type="button" class="suggestion" data-prompt="Help me think through a difficult decision, showing the tradeoffs."><span>◈</span> Think through a decision <span class="arrow">↗</span></button>
             <button type="button" class="suggestion" data-prompt="Write a clean Python function to safely parse JSONL, with unit tests."><span>⌘</span> Build something useful <span class="arrow">↗</span></button>

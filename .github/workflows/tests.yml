@@ -19,3 +19,27 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install -e .
       - run: python -m unittest discover -s tests -v
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install -e .
+      - run: python -m pip wheel --no-deps --no-build-isolation . -w dist
+      - name: Check distributable wheel assets
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          wheels = list(Path('dist').glob('svenbot-*.whl'))
+          assert len(wheels) == 1, wheels
+          with ZipFile(wheels[0]) as wheel:
+              for path in ('svenbot/discovery.py', 'svenbot/ui/index.html',
+                           'svenbot/ui/app.js', 'svenbot/ui/style.css'):
+                  assert path in wheel.namelist(), path
+          PY

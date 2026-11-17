@@ -140,4 +140,22 @@ fetch('/health', {credentials: 'omit'})
   .then(response => response.ok ? response.json() : Promise.reject())
   .then(info => { runtime.textContent = `${info.backend === 'auto' ? 'Auto route' : info.backend}${info.model ? ' · ' + info.model : ''}`; })
   .catch(() => {runtime.textContent = 'Engine unavailable';});
+// Read-only diagnostics; no downloads, background polling, or persistent settings.
+fetch('/v1/local/status', {credentials: 'omit'})
+  .then(response => response.ok ? response.json() : Promise.reject())
+  .then(info => {
+    const ready = info.backends?.ollama === 'ready' ||
+                  info.backends?.openai === 'ready' || info.pybot_available;
+    const setup = $('setup-panel');
+    if (!ready) {
+      $('setup-title').textContent = 'Your private workspace is ready. Add a local model.';
+      $('setup-description').textContent = 'No usable local engine detected yet. Run this read-only check in your terminal to see what is missing. Svenbot never downloads models by itself.';
+      $('setup-command').textContent = 'svenbot setup';
+      setup.classList.remove('hidden');
+    } else if (info.configured_model && info.backends?.ollama === 'ready') {
+      // Keep configured model visible, not the advisory alternative.
+      runtime.title = 'Configured model: ' + info.configured_model;
+    }
+  })
+  .catch(() => { /* Health/error text already reports connectivity. */ });
 input.focus(); adjustHeight();
