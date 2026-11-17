@@ -40,6 +40,30 @@ git submodule update --init --recursive
 
 `--backend auto` (the default) tries Ollama, then the OpenAI-compatible server, then PyBot rules. It reports backend failures rather than making up a reply. `--verbose` prints the selected backend, individual attempted routes with local timings, and sources on stderr. Rule-engine memory lasts for the running process only; it is not recovered from SQLite across restarts.
 
+## Talk to Svenbot in your browser (new in v0.4)
+
+A real, single-command, dependency-free local chat interface is included in the Python package. **No npm, CDN, external fonts, analytics, account, or browser storage.**
+
+```bash
+# Start Ollama separately and download a model you can run on your machine:
+ollama pull llama3.2
+svenbot web --backend ollama --model llama3.2
+# Open http://127.0.0.1:8765 in a browser on this computer.
+```
+
+The chat streams words as they arrive, shows which backend answered, supports stop/reset/copy, and keeps temporary conversation context only in the open tab. Closing or reloading the page clears it. When running `--backend auto`, any fallback must happen before visible output begins. If a backend fails mid-answer, the partial reply is marked incomplete, no second backend is spliced into it, and that turn is not saved. Browser messages use text-only rendering, never executable model HTML.
+
+For a responsive terminal instead:
+
+```bash
+svenbot chat --backend ollama --model llama3.2
+svenbot ask "Explain locality" --backend ollama --stream
+# Legacy full-response behavior remains available:
+svenbot chat --backend ollama --no-stream
+```
+
+The existing non-streaming OpenAI-style API still works; callers may now send `"stream": true` to `/v1/chat/completions` for text-only SSE chunks ending with `data: [DONE]`. This is a subset of the API, not full feature parity. The web and API server are **127.0.0.1 only** and unauthenticated: do not port-forward them or put them behind a public proxy. Same-origin browser requests are allowed; cross-origin requests, unexpected Host headers, and non-JSON writes are rejected. Source retrieval requires explicitly indexed workspace files. The UI does not expose `evidence` receipts; use the CLI for verified quotations.
+
 ## Make your files searchable (explicitly)
 
 No implicit filesystem crawl or background indexing. Choose which local text/code files to index:
@@ -120,7 +144,7 @@ curl -s http://127.0.0.1:8765/v1/chat/completions \
   -d '{"model":"svenbot","messages":[{"role":"user","content":"Hello"}]}'
 ```
 
-The non-streaming text-only `/v1/chat/completions` response follows a small subset of the OpenAI schema, plus `GET /health` and `GET /v1/models`. API calls are isolated; request histories supplied as user/assistant messages are not persisted. Tools, images, streaming, arbitrary system messages, and multi-user authentication **are not implemented**. The listener binds to `127.0.0.1` only, requires JSON requests, rejects browser `Origin` headers and unrecognized `Host` values to reduce DNS rebinding/CSRF exposure, adds no permissive CORS header, and must **not** be publicly exposed or reverse-proxied as an open service. Any local process can still call it; it is not an authenticated multi-user service.
+The text-only `/v1/chat/completions` endpoint supports non-streaming responses and bounded SSE streaming; it follows a small subset of the OpenAI schema, plus `GET /health` and `GET /v1/models`. API calls are isolated; request histories supplied as user/assistant messages are not persisted. Tools, images, arbitrary system messages, and multi-user authentication **are not implemented**. The listener binds to `127.0.0.1` only, requires JSON requests, accepts only same-origin browser requests and rejects unrecognized `Host` values to reduce DNS rebinding/CSRF exposure, adds no permissive CORS header, and must **not** be publicly exposed or reverse-proxied as an open service. Any local process can still call it; it is not an authenticated multi-user service.
 
 ## Design principles
 
@@ -149,7 +173,7 @@ This repo does not bundle weights, start a server, train a model, or replicate P
 2. **Real retrieval:** chunked ingestion, incremental updates, and line references are shipped. Proof-carrying extractive receipts and offline contract falsification now ship; next: optional local embeddings, independent entailment evaluation, and relevance benchmarks.
 3. **Adaptive routing:** an auditable per-task model choice with explicit cost/quality budgets, deterministic heuristics, and real benchmark datasets.
 4. **Trustworthy agents:** sandboxed capabilities, allowlisted tool permissions, confirmations for mutations, security audits and red-team suites.
-5. **First-class experience:** streaming, model discovery, cross-platform packaging, web/desktop UI, observability, hardware-aware model recommendations.
+5. **First-class experience:** terminal + web streaming chat now ships. Next: model discovery, cross-platform installers, accessibility review, desktop wrappers, observability, hardware-aware model recommendations.
 
 Contributions should include tests and before/after measurements. Claims about local privacy must document every network boundary.
 

@@ -31,7 +31,9 @@ def parser() -> argparse.ArgumentParser:
     common.add_argument("--verbose", action="store_true", help="show the backend used and cited files")
     ask = subs.add_parser("ask", parents=[common], help="single prompt")
     ask.add_argument("prompt", help="question to ask")
-    subs.add_parser("chat", parents=[common], help="interactive terminal chat")
+    ask.add_argument("--stream", action="store_true", help="print response tokens as they arrive")
+    chat = subs.add_parser("chat", parents=[common], help="interactive streaming terminal chat")
+    chat.add_argument("--no-stream", action="store_true", help="wait for the full response before printing")
     index = subs.add_parser("index", help="explicitly add text/code files to local FTS search")
     index.add_argument("path")
     index.add_argument("--workspace", default=".")
@@ -65,8 +67,10 @@ def parser() -> argparse.ArgumentParser:
     doctor.add_argument("--ollama-url", default=os.getenv("SVENBOT_OLLAMA_URL", "http://127.0.0.1:11434"))
     doctor.add_argument("--openai-url", default=os.getenv("SVENBOT_OPENAI_URL", "http://127.0.0.1:8080"))
     doctor.add_argument("--allow-remote", action="store_true")
-    serve = subs.add_parser("serve", parents=[common], help="loopback-only, non-streaming chat completion API")
+    serve = subs.add_parser("serve", parents=[common], help="loopback web UI and chat-completion API")
     serve.add_argument("--port", type=int, default=8765)
+    web = subs.add_parser("web", parents=[common], help="launch local web chat on http://127.0.0.1:8765")
+    web.add_argument("--port", type=int, default=8765)
     return p
 
 
@@ -88,18 +92,44 @@ def emit(answer, verbose: bool):
             print(f"[source {i}: {h.path}:{h.line}-{h.end_line or h.line}]", file=sys.stderr)
 
 
+def emit_stream(engine: Engine, prompt: str, verbose: bool):
+    """Keep the terminal responsive while preserving the no-partial-save rule."""
+    import re
+    backend = None
+    printed = False
+    try:
+        for part in engine.stream(prompt):
+            if part.done:
+                if verbose:
+                    print(f"[backend: {part.backend}]", file=sys.stderr)
+                    for attempt in part.attempts:
+                        print(f"[route: {attempt.backend} {attempt.status} {attempt.elapsed_ms:.1f} ms]",
+                              file=sys.stderr)
+                continue
+            # Model output is untrusted terminal text; strip escape/control bytes.
+            safe = re.sub(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]", "�", part.text)
+            print(safe, end="", flush=True)
+            printed = True
+    finally:
+        if printed:
+            print(flush=True)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
-        if args.command in (None, "chat", "ask", "serve"):
+        if args.command in (None, "chat", "ask", "serve", "web"):
             # No args runs chat using parser defaults, but CLI options attach to subcommands.
             if args.command is None:
                 args = parser().parse_args(["chat"])
             engine, store = make_engine(args)
             try:
                 if args.command == "ask":
-                    emit(engine.ask(args.prompt), args.verbose)
-                elif args.command == "serve":
+                    if args.stream:
+                        emit_stream(engine, args.prompt, args.verbose)
+                    else:
+                        emit(engine.ask(args.prompt), args.verbose)
+                elif args.command in ("serve", "web"):
                     from .server import serve
                     serve(engine.settings, args.db, args.port)
                 else:
@@ -118,7 +148,10 @@ def main(argv: list[str] | None = None) -> int:
                             continue
                         if not prompt:
                             continue
-                        emit(engine.ask(prompt), args.verbose)
+                        if args.no_stream:
+                            emit(engine.ask(prompt), args.verbose)
+                        else:
+                            emit_stream(engine, prompt, args.verbose)
             finally:
                 if store:
                     store.close()

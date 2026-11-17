@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0 — First Light: streaming local web chat
+
+- New standalone, dependency-free local web chat at `svenbot web`, with intentional privacy defaults, accessible controls, mobile layout, stop/reset/copy and text-only rendering (no third-party assets, analytics, accounts or browser storage).
+- End-to-end text streaming for Ollama NDJSON and OpenAI-compatible SSE; `svenbot chat` streams by default, `svenbot ask --stream` is opt-in, and existing non-streaming clients continue to work.
+- `/v1/chat/completions` supports `stream: true` SSE chunks and `[DONE]`, with a clear error event if streaming fails after output begins; browser UI never treats an interrupted stream as a completed reply.
+- Stream routing is fail-closed: fallback is permitted only before any visible content; partial outputs are not persisted or combined with a different backend's answer.
+- Strict local URL policy remains unchanged; upstream streaming ignores HTTP proxy environment settings and refuses redirects. Stream lines, aggregate bytes and output length are bounded.
+- Hardened localhost Host, Origin and `Sec-Fetch-Site` validation for the same-origin browser UI. CSP forbids inline scripts and external assets; no permissive CORS.
+- Added HTTP streaming fixture integration tests and security/interrupt regressions; tested Python wheel assets. No model-quality or performance superiority claims.
+
 ## 0.3.0 — Proof-carrying extractive evidence
 
 - New opt-in `svenbot evidence` and `svenbot verify` commands: deterministic offline selection or local-model nomination of exact quoted text with path, line span, character offsets, and source/quote digests.
