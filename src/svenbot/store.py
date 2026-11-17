@@ -245,6 +245,16 @@ class Store:
                     self.conn.execute("DELETE FROM indexed_files WHERE workspace=? AND path=?", (key, path))
         return indexed, skipped
 
+    def get_chunk(self, workspace: str | Path, path: str, chunk_id: str) -> Hit | None:
+        """Look up exact indexed provenance; never read live filesystem contents."""
+        rows = self.conn.execute("""SELECT line_start, line_end, content
+          FROM document_chunks WHERE workspace=? AND path=? AND chunk_id=? LIMIT 2""",
+          (workspace_key(workspace), path, chunk_id)).fetchall()
+        if len(rows) != 1:
+            return None
+        first, last, text = rows[0]
+        return Hit(path, int(first), text, int(last), chunk_id)
+
     def search(self, workspace: str | Path, query: str, limit: int = 4) -> list[Hit]:
         words = list(dict.fromkeys(re.findall(r"[\w]+", query.lower(), flags=re.UNICODE)))[:12]
         words = [word for word in words if len(word) > 1]

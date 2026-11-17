@@ -81,6 +81,36 @@ JSONL fixtures contain one object per line: `{"id":"reasoning-01", "category":"r
 
 This is a *performance harness*, not a scored model-quality evaluation. Latency includes Python routing and HTTP transport, while reported peak RSS covers the Svenbot Python process, **not Ollama or a separate model server**. Report hardware, quantization, concurrency, cold/warm state, and independent accuracy evaluation before claiming a model win. The included smoke dataset tests only that the harness runs; it cannot establish model superiority.
 
+## Proof-carrying extractive evidence (experimental in v0.3)
+
+Normal `ask` and chat remain generative. The new **opt-in** `evidence` lane is different:
+its output is only exact quotations from the local indexed snapshot. You can run it entirely
+**offline**, or ask a local model to nominate relevant verbatim passages while a deterministic
+validator checks all quoted text, source IDs, character offsets, chunk hashes, and line spans.
+
+```bash
+svenbot index docs --workspace .
+svenbot evidence "How does the cooling system work?" --workspace . \
+  --output cooling.evidence.json
+svenbot verify cooling.evidence.json --workspace .
+
+# Local model selection is optional and still cannot write an unsupported quote.
+svenbot evidence "How does the cooling system work?" --workspace . \
+  --selector model --backend ollama --model llama3.2
+
+# Reproducible synthetic adversarial contract checks (no model/network)
+svenbot evidence-eval --cases benchmarks/evidence-contract.jsonl
+```
+
+This is **provenance verification, not truth verification or natural-language entailment**.
+The receipts check against the **current indexed SQLite snapshot**, not live disk contents,
+and SHA-256 hashes are **not signatures**. Reindex before checking for stale source files.
+An exact source quote may be false or misleading. The optional model can still choose an
+irrelevant or malicious quote, but it cannot introduce new words as if they were quoted from a
+source in this explicit lane. Receipts contain plaintext source text and should not be
+published or committed indiscriminately. Save is opt-in and refuses to overwrite an existing file.
+See [the research hypothesis, threat model, and falsification plan](docs/research/attested-evidence.md).
+
 ## Local API
 
 ```bash
@@ -116,7 +146,7 @@ This repo does not bundle weights, start a server, train a model, or replicate P
 ## Roadmap to earn the crown
 
 1. **Performance lab:** a local wall-time JSONL benchmark harness is shipped. Next: publish real CPU, Apple Silicon, and GPU results including throughput, full model-server memory, first token timing, and separately judged answer quality.
-2. **Real retrieval:** chunked ingestion, incremental updates, and line references are shipped. Next: independent citation verification, optional local embedding models, and retrieval evaluation.
+2. **Real retrieval:** chunked ingestion, incremental updates, and line references are shipped. Proof-carrying extractive receipts and offline contract falsification now ship; next: optional local embeddings, independent entailment evaluation, and relevance benchmarks.
 3. **Adaptive routing:** an auditable per-task model choice with explicit cost/quality budgets, deterministic heuristics, and real benchmark datasets.
 4. **Trustworthy agents:** sandboxed capabilities, allowlisted tool permissions, confirmations for mutations, security audits and red-team suites.
 5. **First-class experience:** streaming, model discovery, cross-platform packaging, web/desktop UI, observability, hardware-aware model recommendations.
