@@ -18,7 +18,8 @@
       </div>
       <div class="rail-group">
         <div class="eyebrow">YOUR WORKSPACE</div>
-        <button class="nav-button selected" type="button" aria-current="page"><span aria-hidden="true">◉</span> Conversation</button>
+        <button class="nav-button selected" id="chat-nav" type="button" aria-current="page"><span aria-hidden="true">◉</span> Conversation</button>
+        <button class="nav-button" id="knowledge-nav" type="button" aria-controls="knowledge-panel" aria-expanded="false"><span aria-hidden="true">▤</span> Knowledge</button>
         <button class="nav-button" id="reset" type="button"><span aria-hidden="true">↻</span> New conversation</button>
       </div>
       <div class="rail-bottom">
@@ -34,6 +35,7 @@
     <main class="main">
       <header class="topbar">
         <div class="crumb">SVENBOT <span aria-hidden="true">/</span> CHAT</div>
+        <button id="knowledge-top" class="knowledge-top" type="button" aria-controls="knowledge-panel" aria-expanded="false">▤ Knowledge</button>
         <div class="runtime" id="runtime" title="Backend configured for this local server">
           <span class="status-dot" aria-hidden="true"></span>
           <span id="runtime-label">Connecting to local engine</span>
@@ -41,6 +43,21 @@
       </header>
 
       <div class="conversation" id="scroll-region">
+        <section class="knowledge-panel hidden" id="knowledge-panel" aria-label="Local knowledge library">
+          <p class="welcome-eyebrow">EXPLICITLY INDEXED. ALWAYS LOCAL.</p>
+          <h1>Your knowledge.</h1>
+          <p>Search files you've indexed with <code>svenbot index PATH --workspace PATH</code>. Svenbot doesn't scan the machine on its own.</p>
+          <form id="knowledge-form" class="knowledge-form">
+            <label class="visually-hidden" for="knowledge-query">Search indexed documents</label>
+            <input id="knowledge-query" placeholder="Search your documents…" type="search" maxlength="256" required>
+            <button type="submit">Search</button>
+          </form>
+          <p id="knowledge-status" class="knowledge-status" role="status" aria-live="polite"></p>
+          <div id="knowledge-results" class="knowledge-results" aria-live="polite"></div>
+          <h2>Indexed files</h2>
+          <ul id="knowledge-files" class="knowledge-files"></ul>
+          <p class="knowledge-footnote">Text is stored locally in SQLite. Remove one source with <code>svenbot forget PATH --workspace . --yes</code> or purge the whole workspace. The original files stay untouched.</p>
+        </section>
         <section class="welcome" id="welcome">
           <div class="orb" aria-hidden="true"><div class="orb-core">S</div></div>
           <p class="welcome-eyebrow">INTELLIGENCE, WHERE YOU LIVE.</p>

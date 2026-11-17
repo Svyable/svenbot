@@ -4,11 +4,11 @@
 
 Svenbot is an independent, local-first orchestration project inspired by [Hugging Face PyBot](https://github.com/huggingface/pybot). PyBot took a wonderfully strange approach: hundreds of thousands of lines of hand-written/generated Python rules instead of model weights. Svenbot keeps that experiment available as an **optional, pinned upstream submodule**, and adds actual on-device LLM inference, local retrieval, opt-in conversation persistence, and a small local HTTP interface.
 
-It is a **working 0.5 beta, not yet the best local AI assistant**. We intend to earn that through reproducible benchmarks, latency and memory efficiency, extensibility, and safety—not marketing claims.
+It is a **working 0.6 beta, not yet the best local AI assistant**. We intend to earn that through reproducible benchmarks, latency and memory efficiency, extensibility, and safety—not marketing claims.
 
 ## Quick start
 
-Python 3.10+; no Python runtime dependencies.
+Python 3.10+; the base installation has no Python runtime dependencies. Text-based PDF parsing is optional.
 
 ```bash
 git clone --recurse-submodules https://github.com/Svyable/svenbot.git
@@ -84,9 +84,39 @@ svenbot chat --backend ollama --no-stream
 
 The existing non-streaming OpenAI-style API still works; callers may now send `"stream": true` to `/v1/chat/completions` for text-only SSE chunks ending with `data: [DONE]`. This is a subset of the API, not full feature parity. The web and API server are **127.0.0.1 only** and unauthenticated: do not port-forward them or put them behind a public proxy. Same-origin browser requests are allowed; cross-origin requests, unexpected Host headers, and non-JSON writes are rejected. Source retrieval requires explicitly indexed workspace files. The UI does not expose `evidence` receipts; use the CLI for verified quotations.
 
+## Work with real documents (new in v0.6)
+
+Svenbot now extracts **Word `.docx`, HTML, CSV/TSV, and text-based PDF** files on your own machine. Word, HTML and CSV/TSV use only the Python standard library. PDFs use the optional local `pypdf` parser; Svenbot does not perform OCR, download parsing services, execute Word macros, evaluate CSV spreadsheet formulas, run embedded scripts, or fetch linked resources.
+
+```bash
+# One-time optional PDF parser; not required for Word, HTML, CSV or text.
+python -m pip install -e '.[documents]'
+
+# Index only the chosen file/folder, not your whole computer.
+svenbot index ~/projects/notes/report.pdf --workspace ~/projects/notes
+svenbot index ~/projects/notes/invoices --workspace ~/projects/notes
+svenbot library --workspace ~/projects/notes
+svenbot search "invoice 4873" --workspace ~/projects/notes
+
+# Q&A about a single file, WITHOUT a persistent index or saved chat:
+svenbot ask-file ~/projects/notes/report.docx "What did revenue do?" --backend ollama
+# Restrict the source context supplied to the model if needed:
+svenbot ask-file ~/projects/notes/report.csv "Which SKU is low?" --max-chunks 6
+
+# Remove precisely one indexed copy, not the original document:
+svenbot forget invoices/2026.csv --workspace ~/projects/notes --yes
+svenbot library --workspace ~/projects/notes --json
+```
+
+**Ephemeral file Q&A:** `ask-file` builds its index in an in-memory SQLite database, selects at most 12 source excerpts, and asks a configured local language model. It does **not** persist the document or chat. A `--backend auto` request attempts Ollama and a local compatible server but deliberately **does not** fall back to PyBot's ungrounded rules. Remote endpoints remain blocked unless you explicitly pass `--allow-remote`. No source files are modified. The answer is still model-generated and may be wrong or hallucinate citations; use the `evidence` and `verify` commands for exact-quote integrity. Long files may exceed the selected excerpt budget.
+
+**Persistent library:** `index` stores plaintext *extracted text* in SQLite and is explicit, workspace-bound, capped at 1,000 files per invocation and limited to 8 MB per document and 1.5 million extracted characters. PDF extraction caps at 100 pages; scanned/image-only or encrypted PDFs aren't supported. `library` lists the first 500 indexed file names, hashes and chunk counts without reading documents again; `forget ... --yes` removes one indexed copy, leaving the original file untouched. Directory re-indexing can add a forgotten file again. Prior indexed documents remain after deleting/moving originals until re-index or purge. **Cited line numbers refer to extracted text rather than original Word/PDF visual line numbers**; extracted PDFs include `[PDF page N]` markers. Review indexed folders for secrets and use disk encryption for sensitive data.
+
+**Browser knowledge panel:** Start `svenbot web --workspace ~/projects/notes` and open **Knowledge**. It lists only previously indexed sources and searches FTS5 excerpts without invoking a model or indexing anything new. The `/v1/local/library` read-only and `/v1/local/search` JSON endpoints require that the server be explicitly launched with `--workspace`; they remain same-origin and localhost only. No browser-side persistence or file uploads are introduced in this release.
+
 ## Make your files searchable (explicitly)
 
-No implicit filesystem crawl or background indexing. Choose which local text/code files to index:
+No implicit filesystem crawl or background indexing. Choose which local text/code/document files to index:
 
 ```bash
 svenbot index docs --workspace .
@@ -164,7 +194,7 @@ curl -s http://127.0.0.1:8765/v1/chat/completions \
   -d '{"model":"svenbot","messages":[{"role":"user","content":"Hello"}]}'
 ```
 
-The text-only `/v1/chat/completions` endpoint supports non-streaming responses and bounded SSE streaming; it follows a small subset of the OpenAI schema, plus `GET /health`, `GET /v1/models` and the read-only `GET /v1/local/status` diagnostics. Models and machine metadata never leave the local status endpoint unless you explicitly reconfigure the server for remote access. API calls are isolated; request histories supplied as user/assistant messages are not persisted. Tools, images, arbitrary system messages, and multi-user authentication **are not implemented**. The listener binds to `127.0.0.1` only, requires JSON requests, accepts only same-origin browser requests and rejects unrecognized `Host` values to reduce DNS rebinding/CSRF exposure, adds no permissive CORS header, and must **not** be publicly exposed or reverse-proxied as an open service. Any local process can still call it; it is not an authenticated multi-user service.
+The text-only `/v1/chat/completions` endpoint supports non-streaming responses and bounded SSE streaming; it follows a small subset of the OpenAI schema, plus `GET /health`, `GET /v1/models`, read-only `GET /v1/local/status` and explicitly workspace-scoped knowledge listing/search endpoints. Models and machine metadata never leave the local status endpoint unless you explicitly reconfigure the server for remote access. API calls are isolated; request histories supplied as user/assistant messages are not persisted. Tools, images, arbitrary system messages, and multi-user authentication **are not implemented**. The listener binds to `127.0.0.1` only, requires JSON requests, accepts only same-origin browser requests and rejects unrecognized `Host` values to reduce DNS rebinding/CSRF exposure, adds no permissive CORS header, and must **not** be publicly exposed or reverse-proxied as an open service. Any local process can still call it; it is not an authenticated multi-user service.
 
 ## Design principles
 
@@ -190,10 +220,10 @@ This repo does not bundle weights, start a server, train a model, or replicate P
 ## Roadmap to earn the crown
 
 1. **Performance lab:** a local wall-time JSONL benchmark harness is shipped. Next: publish real CPU, Apple Silicon, and GPU results including throughput, full model-server memory, first token timing, and separately judged answer quality.
-2. **Real retrieval:** chunked ingestion, incremental updates, and line references are shipped. Proof-carrying extractive receipts and offline contract falsification now ship; next: optional local embeddings, independent entailment evaluation, and relevance benchmarks.
+2. **Real retrieval:** document extraction for Word/HTML/CSV and optional PDF, chunked ingestion, incremental updates, file inventory/removal and line references are shipped. Proof-carrying extractive receipts and offline contract falsification now ship; next: optional local embeddings, independent entailment evaluation, and relevance benchmarks.
 3. **Adaptive routing:** an auditable per-task model choice with explicit cost/quality budgets, deterministic heuristics, and real benchmark datasets.
 4. **Trustworthy agents:** sandboxed capabilities, allowlisted tool permissions, confirmations for mutations, security audits and red-team suites.
-5. **First-class experience:** terminal + web streaming chat now ships. Next: model discovery, cross-platform installers, accessibility review, desktop wrappers, observability, hardware-aware model recommendations.
+5. **First-class experience:** terminal + web streaming chat, installed-model discovery and a read-only knowledge browser now ship. Next: cross-platform installers, accessibility review, desktop wrappers, observability, and actual VRAM-fit verification.
 
 Contributions should include tests and before/after measurements. Claims about local privacy must document every network boundary.
 

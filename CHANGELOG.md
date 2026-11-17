@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0 — Knowledge Desk: work with real documents
+
+- Added local, bounded extraction for Word `.docx`, HTML, CSV/TSV using the Python standard library; optional `pypdf` enables text-based PDF ingestion with per-page markers. No OCR, macros, formula evaluation, external network, or implicit file crawling.
+- Added `svenbot ask-file PATH QUESTION` for one-off document Q&A using an **in-memory SQLite index** that is discarded after the request; no persistent session or database. Model-based only, with no ungrounded PyBot fallback.
+- Added `svenbot library` for workspace-scoped inventory and `svenbot forget PATH --yes` to remove one indexed text copy while preserving its original file. Existing retrieval schema is unchanged.
+- Added a responsive local **Knowledge** browser panel for previously indexed sources and read-only source excerpts, backed by same-origin `/v1/local/library` and POST `/v1/local/search`. No file upload, local filesystem scan, analytics, or browser storage.
+- Defensive size and parser limits, explicit optional parser failures, source escaping and regression cases covering forged Host/Origin, malformed input, document extraction, and ephemeral persistence.
+- Existing `ask`, `chat`, evidence receipts, local model discovery, and API compatibility stay in place. PDF OCR, real-device validation and professional security review remain open.
+
 ## 0.5.0 — Local Launch: read-only discovery and first-run guidance
 
 - Added `svenbot setup` (human/JSON output) and `svenbot models`: bounded read-only installed model inventory and best-effort physical/cgroup RAM observations; no automatic model pulls, remote telemetry or shell execution.

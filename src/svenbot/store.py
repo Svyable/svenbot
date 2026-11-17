@@ -14,7 +14,9 @@ import stat
 from dataclasses import dataclass
 from pathlib import Path
 
-SAFE_EXTENSIONS = {".md", ".mdx", ".txt", ".rst", ".py", ".go", ".rs", ".js", ".ts", ".tsx", ".json", ".toml", ".yaml", ".yml"}
+from .documents import DOCUMENT_EXTENSIONS, MAX_DOCUMENT_BYTES, DocumentError, extract
+
+SAFE_EXTENSIONS = {".md", ".mdx", ".txt", ".rst", ".py", ".go", ".rs", ".js", ".ts", ".tsx", ".json", ".toml", ".yaml", ".yml"} | DOCUMENT_EXTENSIONS
 SKIP_DIRS = {".git", "node_modules", ".venv", "venv", "__pycache__", ".next", "dist", "build"}
 SKIP_NAMES = {".env", ".env.local", ".env.production", "id_rsa", "id_ed25519", "credentials.json", "secrets.json"}
 SENSITIVE_NAME = re.compile(r"(?:^|[._-])(secrets?|credentials?|passwords?|tokens?|private|apikey|api_key)(?:[._-]|$)", re.I)
@@ -72,24 +74,41 @@ def _raise_walk_error(error: OSError) -> None:
     raise error
 
 
-def _read_file(path: Path, base: Path) -> str | None:
-    # Never follow a final symlink; reject a path resolving outside the selected workspace.
+def _read_file(path: Path, base: Path, *, strict_document: bool = False) -> str | None:
+    """Read only the requested regular file, without following final symlinks.
+
+    Optional non-text parsers never open paths themselves; they receive bounded
+    bytes from this descriptor. A corrupt file is skipped in directory batches,
+    but explicit document selection returns a helpful error.
+    """
     if path.is_symlink() or not path.resolve().is_relative_to(base):
         return None
+    document = path.suffix.lower() in DOCUMENT_EXTENSIONS
+    limit = MAX_DOCUMENT_BYTES if document else MAX_FILE_BYTES
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     try:
         fd = os.open(path, flags)
         try:
             info = os.fstat(fd)
-            if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_FILE_BYTES:
+            if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
+                if document and strict_document:
+                    raise DocumentError("Document exceeded the 8 MB input limit")
                 return None
             with os.fdopen(fd, "rb", closefd=False) as stream:
-                raw = stream.read(MAX_FILE_BYTES + 1)
-            if len(raw) > MAX_FILE_BYTES:
+                raw = stream.read(limit + 1)
+            if len(raw) > limit:
+                if document and strict_document:
+                    raise DocumentError("Document exceeded the 8 MB input limit")
                 return None
+            if document:
+                return extract(path.name, raw)
             return raw.decode("utf-8")
         finally:
             os.close(fd)
+    except DocumentError:
+        if strict_document:
+            raise
+        return None
     except (OSError, UnicodeError):
         return None
 
@@ -97,8 +116,10 @@ def _read_file(path: Path, base: Path) -> str | None:
 class Store:
     def __init__(self, db: str | Path):
         self.path = Path(db).expanduser()
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(self.path, timeout=5)
+        self.ephemeral = str(db) == ":memory:"
+        if not self.ephemeral:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.conn = sqlite3.connect(":memory:" if self.ephemeral else str(self.path), timeout=5)
         self.conn.execute("PRAGMA busy_timeout = 5000")
         self.conn.execute("PRAGMA secure_delete = ON")
         self.conn.execute("""CREATE TABLE IF NOT EXISTS messages (
@@ -117,7 +138,7 @@ class Store:
             raise RuntimeError("SQLite FTS5 support is required for local retrieval") from exc
         self._migrate_legacy_documents()
         self.conn.commit()
-        if os.name == "posix":
+        if os.name == "posix" and not self.ephemeral:
             try:
                 self.path.chmod(0o600)
             except OSError:
@@ -218,7 +239,7 @@ class Store:
                         or SENSITIVE_NAME.search(path.name) or path.suffix.lower() not in SAFE_EXTENSIONS):
                     skipped += 1
                     continue
-                content = _read_file(path, base)
+                content = _read_file(path, base, strict_document=root.is_file())
                 if content is None:
                     skipped += 1
                     continue
@@ -244,6 +265,38 @@ class Store:
                     self.conn.execute("DELETE FROM document_chunks WHERE workspace=? AND path=?", (key, path))
                     self.conn.execute("DELETE FROM indexed_files WHERE workspace=? AND path=?", (key, path))
         return indexed, skipped
+
+    def list_files(self, workspace: str | Path, *, limit: int = 500) -> list[dict]:
+        """List the selected workspace's indexed documents without revealing content."""
+        key = workspace_key(workspace)
+        rows = self.conn.execute("""SELECT f.path, f.digest, count(c.chunk_id)
+          FROM indexed_files AS f LEFT JOIN document_chunks AS c
+            ON c.workspace=f.workspace AND c.path=f.path
+          WHERE f.workspace=? GROUP BY f.path, f.digest ORDER BY f.path LIMIT ?""",
+          (key, max(1, min(limit, 500)))).fetchall()
+        return [{"path": p, "sha256": digest, "chunks": count} for p, digest, count in rows]
+
+    def forget_file(self, workspace: str | Path, path: str) -> bool:
+        """Remove exactly one indexed file; never modify the original filesystem."""
+        if (not path or path.startswith("/") or "\\" in path or
+                any(part in ("", ".", "..") for part in path.split("/"))):
+            raise ValueError("Indexed path must be a normalized relative file path")
+        key = workspace_key(workspace)
+        with self.conn:
+            existed = self.conn.execute("SELECT 1 FROM indexed_files WHERE workspace=? AND path=?",
+                                        (key, path)).fetchone() is not None
+            if existed:
+                self.conn.execute("DELETE FROM document_chunks WHERE workspace=? AND path=?", (key, path))
+                self.conn.execute("DELETE FROM indexed_files WHERE workspace=? AND path=?", (key, path))
+        return existed
+
+    def file_chunks(self, workspace: str | Path, path: str, *, limit: int = 8) -> list[Hit]:
+        """Read a bounded initial selection from this file's **indexed snapshot**."""
+        rows = self.conn.execute("""SELECT line_start, line_end, content, chunk_id
+          FROM document_chunks WHERE workspace=? AND path=? ORDER BY rowid LIMIT ?""",
+          (workspace_key(workspace), path, max(1, min(limit, 12)))).fetchall()
+        return [Hit(path, int(first), content, int(last), chunk_id)
+                for first, last, content, chunk_id in rows]
 
     def get_chunk(self, workspace: str | Path, path: str, chunk_id: str) -> Hit | None:
         """Look up exact indexed provenance; never read live filesystem contents."""

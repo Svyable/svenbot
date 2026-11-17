@@ -81,8 +81,68 @@ async function consumeStream(response, onData) {
     if (!finished) throw Error('Local model connection closed before completion.');
   } finally { reader.releaseLock(); }
 }
+const knowledgePanel = $('knowledge-panel');
+function showKnowledge(visible) {
+  knowledgePanel.classList.toggle('hidden', !visible);
+  log.classList.toggle('hidden', visible);
+  welcome.classList.toggle('hidden', visible || log.childElementCount > 0);
+  $('knowledge-nav').classList.toggle('selected', visible);
+  $('chat-nav').classList.toggle('selected', !visible);
+  $('knowledge-nav').setAttribute('aria-expanded', String(visible));
+  $('knowledge-top').setAttribute('aria-expanded', String(visible));
+  $('chat-nav').setAttribute('aria-current', visible ? 'false' : 'page');
+  if (visible) { loadKnowledge(); $('knowledge-query').focus(); }
+  else input.focus();
+}
+async function loadKnowledge() {
+  const status = $('knowledge-status');
+  status.textContent = 'Loading indexed files…';
+  $('knowledge-files').replaceChildren();
+  try {
+    const response = await fetch('/v1/local/library', {credentials: 'omit'});
+    if (!response.ok) throw Error(response.status === 409 ?
+      'Enable --workspace when starting svenbot web to use the knowledge library.' : 'Unable to load the local index.');
+    const result = await response.json();
+    const files = result.files || [];
+    status.textContent = `${files.length} indexed file(s) available, up to 500 listed.`;
+    for (const file of files) {
+      const li = document.createElement('li');
+      li.textContent = file.path;
+      const meta = document.createElement('small');
+      meta.textContent = `${file.chunks} excerpts`;
+      li.append(meta); $('knowledge-files').append(li);
+    }
+  } catch (error) { status.textContent = error.message; }
+}
+$('knowledge-nav').addEventListener('click', () => showKnowledge(true));
+$('chat-nav').addEventListener('click', () => showKnowledge(false));
+$('knowledge-top').addEventListener('click', () => showKnowledge(knowledgePanel.classList.contains('hidden')));
+$('knowledge-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const query = $('knowledge-query').value.trim();
+  if (!query) return;
+  const status = $('knowledge-status'), results = $('knowledge-results');
+  status.textContent = 'Searching local knowledge…'; results.replaceChildren();
+  try {
+    const response = await fetch('/v1/local/search', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'omit',
+      body: JSON.stringify({query})
+    });
+    if (!response.ok) throw Error('Local search was unavailable (' + response.status + ').');
+    const data = await response.json();
+    status.textContent = data.results.length ? `${data.results.length} matched excerpt(s).` : 'No matching excerpts.';
+    for (const item of data.results) {
+      const article = document.createElement('article'); article.className = 'knowledge-hit';
+      const title = document.createElement('strong');
+      title.textContent = `${item.path}:${item.line}-${item.end_line || item.line}`;
+      const body = document.createElement('pre'); body.textContent = item.excerpt;
+      article.append(title, body); results.append(article);
+    }
+  } catch (error) { status.textContent = error.message; }
+});
 async function submit(prompt) {
   if (busy || !prompt.trim()) return;
+  if (!knowledgePanel.classList.contains('hidden')) showKnowledge(false);
   const text = prompt.trim();
   input.value = ''; adjustHeight();
   welcome.classList.add('hidden');
@@ -132,7 +192,7 @@ input.addEventListener('keydown', event => {
 });
 stopButton.addEventListener('click', () => aborter?.abort());
 $('reset').addEventListener('click', () => {
-  aborter?.abort(); history = []; log.replaceChildren(); welcome.classList.remove('hidden');
+  aborter?.abort(); history = []; log.replaceChildren(); showKnowledge(false); welcome.classList.remove('hidden');
   input.value = ''; adjustHeight(); input.focus();
 });
 document.querySelectorAll('[data-prompt]').forEach(button => button.addEventListener('click', () => submit(button.dataset.prompt)));

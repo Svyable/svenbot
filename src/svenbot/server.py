@@ -91,6 +91,16 @@ def handler_factory(settings: Settings, db: str):
                 report["configured_backend"] = settings.backend
                 report["configured_model"] = settings.model or settings.ollama_suggested_model
                 self._json(200, report)
+            elif self.path == "/v1/local/library":
+                if not settings.workspace:
+                    self._json(409, {"error": "Start Svenbot with --workspace to use the knowledge library"})
+                    return
+                store = Store(db)
+                try:
+                    files = store.list_files(settings.workspace)
+                finally:
+                    store.close()
+                self._json(200, {"files": files, "max_files": 500})
             elif self.path == "/v1/models":
                 self._json(200, {"object": "list", "data": [{"id": "svenbot", "object": "model"}]})
             else:
@@ -149,11 +159,38 @@ def handler_factory(settings: Settings, db: str):
         def do_POST(self):
             if not self._trusted_request():
                 return
-            if self.path != "/v1/chat/completions":
+            if self.path not in ("/v1/chat/completions", "/v1/local/search"):
                 self._json(404, {"error": "Unknown endpoint"})
                 return
             if self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "application/json":
                 self._json(415, {"error": "Content-Type must be application/json"})
+                return
+            if self.path == "/v1/local/search":
+                if not settings.workspace:
+                    self._json(409, {"error": "Start Svenbot with --workspace to search the knowledge library"})
+                    return
+                try:
+                    n = int(self.headers.get("Content-Length", "-1"))
+                    if not 0 < n <= 4096:
+                        raise ValueError("Search requests must be <= 4096 bytes")
+                    data = json.loads(self.rfile.read(n))
+                    if not isinstance(data, dict) or not isinstance(data.get("query"), str):
+                        raise ValueError("Expected a JSON object with a text query")
+                    question = data["query"].strip()
+                    if not 1 <= len(question) <= 256:
+                        raise ValueError("Search query must be 1–256 characters")
+                except (ValueError, json.JSONDecodeError) as exc:
+                    self._json(400, {"error": str(exc)})
+                    return
+                store = Store(db)
+                try:
+                    hits = store.search(settings.workspace, question, limit=6)
+                finally:
+                    store.close()
+                self._json(200, {"results": [
+                    {"path": hit.path, "line": hit.line, "end_line": hit.end_line,
+                     "chunk_id": hit.chunk_id, "excerpt": hit.excerpt}
+                    for hit in hits]})
                 return
             try:
                 n = int(self.headers.get("Content-Length", "-1"))
