@@ -39,6 +39,16 @@ The `evidence` command **does not** produce a free-form answer. It returns attes
 - The source index and explicitly saved receipts contain plaintext excerpts. Keep receipts private, avoid committing them to public repos, and purge local workspace content if necessary. No background indexing or cloud judge runs.
 - Existing v0.2 normal `ask`, `chat`, `bench`, and HTTP API modes remain unchanged; only the explicit `evidence` lane enforces extractive output.
 
+## Related work and prior-art boundary
+
+This experiment should be understood against existing attribution and verification research, not marketed as the invention of proof-carrying AI:
+
+- [RARR (Gao et al., ACL 2023)](https://aclanthology.org/2023.acl-long.910/) retrieves evidence and revises generated text to improve attribution. Svenbot's evidence lane instead **forbids generated final prose entirely**; it only emits indexed quotations.
+- [ALCE (Gao et al., EMNLP 2023)](https://aclanthology.org/2023.emnlp-main.398/) evaluates answer quality and citation support. Svenbot's 11 cases test **only the strict parser/quote contract**; an ALCE-style independently measured relevance and correctness evaluation is still missing.
+- [Proof-Carrying Answers (Shukla & Joshi, ACSAC Workshops 2025)](https://doi.org/10.1109/ACSACW69556.2025.00050) describes Merkle-authenticated indexes and signed cryptographic receipts. Svenbot **does not implement** those guarantees: it uses simple SHA-256 digests and a local SQLite snapshot, with no digital signature, Merkle proof, or trusted corpus origin.
+
+The engineering distinction worth investigating is the **model-as-untrusted-selector / deterministic extractive-output boundary** on commodity local hardware with no runtime dependencies. Whether this combination is original, useful, or competitive remains to be demonstrated with independent evaluations and prior-art review.
+
 ## Evaluation plan and gates
 
 | Gate | Test | Meaning |

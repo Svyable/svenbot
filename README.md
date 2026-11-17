@@ -109,7 +109,7 @@ An exact source quote may be false or misleading. The optional model can still c
 irrelevant or malicious quote, but it cannot introduce new words as if they were quoted from a
 source in this explicit lane. Receipts contain plaintext source text and should not be
 published or committed indiscriminately. Save is opt-in and refuses to overwrite an existing file.
-See [the research hypothesis, threat model, and falsification plan](docs/research/attested-evidence.md).
+See [the research hypothesis, prior art, threat model, and falsification plan](docs/research/attested-evidence.md). The field already includes established citation and proof-carrying answer research; no claim of scientific priority is made.
 
 ## Local API
 
