@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="referrer" content="no-referrer">
+  <title>Svenbot — Your machine. Your intelligence.</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="rail" aria-label="Workspace navigation">
+      <div class="brand" aria-label="Svenbot">
+        <div class="brand-mark" aria-hidden="true"><span class="star">✳</span></div>
+        <div><strong>SVENBOT</strong><small>LOCAL INTELLIGENCE</small></div>
+      </div>
+      <div class="rail-group">
+        <div class="eyebrow">YOUR WORKSPACE</div>
+        <button class="nav-button selected" type="button" aria-current="page"><span aria-hidden="true">◉</span> Conversation</button>
+        <button class="nav-button" id="reset" type="button"><span aria-hidden="true">↻</span> New conversation</button>
+      </div>
+      <div class="rail-bottom">
+        <div class="privacy-card">
+          <span class="status-dot" aria-hidden="true"></span>
+          <strong>On your machine</strong>
+          <p>Chats live in this tab. No account, analytics, or cloud fallback.</p>
+        </div>
+        <p class="small-note">An independent Svyable project. Model responses can be incorrect.</p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="crumb">SVENBOT <span aria-hidden="true">/</span> CHAT</div>
+        <div class="runtime" id="runtime" title="Backend configured for this local server">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="runtime-label">Connecting to local engine</span>
+        </div>
+      </header>
+
+      <div class="conversation" id="scroll-region">
+        <section class="welcome" id="welcome">
+          <div class="orb" aria-hidden="true"><div class="orb-core">S</div></div>
+          <p class="welcome-eyebrow">INTELLIGENCE, WHERE YOU LIVE.</p>
+          <h1>Think freely.<br><em>Stay local.</em></h1>
+          <p class="intro">A private space for ideas, code, and hard questions—powered by models on your own hardware.</p>
+          <div class="suggestions" aria-label="Suggested first questions">
+            <button type="button" class="suggestion" data-prompt="Help me think through a difficult decision, showing the tradeoffs."><span>◈</span> Think through a decision <span class="arrow">↗</span></button>
+            <button type="button" class="suggestion" data-prompt="Write a clean Python function to safely parse JSONL, with unit tests."><span>⌘</span> Build something useful <span class="arrow">↗</span></button>
+            <button type="button" class="suggestion" data-prompt="Explain a surprising idea in computer science with a concrete example."><span>✧</span> Explore an idea <span class="arrow">↗</span></button>
+          </div>
+        </section>
+        <div class="messages" id="messages" role="log" aria-live="polite" aria-relevant="additions"></div>
+      </div>
+
+      <div class="composer-wrap">
+        <form class="composer" id="prompt-form">
+          <label for="prompt" class="visually-hidden">Message Svenbot</label>
+          <textarea id="prompt" rows="1" maxlength="32000" placeholder="Ask anything. It stays on your machine." autocomplete="off" required></textarea>
+          <div class="composer-bottom">
+            <span id="composer-hint">↵ Send &nbsp; · &nbsp; Shift + ↵ New line</span>
+            <div class="composer-actions">
+              <button id="stop" class="stop hidden" type="button">■ Stop</button>
+              <button id="send" class="send" type="submit" aria-label="Send message"><span aria-hidden="true">↑</span></button>
+            </div>
+          </div>
+        </form>
+        <p class="footer-note">Local inference depends on your configured model. Conversations are not saved by this web interface.</p>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
