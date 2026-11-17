@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0 — Private document drop (First Light)
+
+- Added an explicit, opt-in single-document attachment in the local browser chat: `.docx`, `.html`/`.htm`, `.csv`/`.tsv`, and optional text-based `.pdf` via `svenbot[documents]`. Users can choose or drop a document, ask follow-up questions, see source excerpt line labels, replace the attachment, and remove it; the conversation resets when a document changes.
+- Added temporary `POST /v1/local/document` and `/v1/local/document/clear` endpoints. Originals are never written to disk. The server keeps only extracted text in an opaque capability-token slot, capped at 1 MB input/180,000 extracted characters, four concurrent slots and a 20-minute lifetime. No browser storage, persistent index or implicit library save.
+- Document questions reuse `/v1/chat/completions` with `document_id`. Each question gets an isolated in-memory FTS5 index and a bounded excerpt selection. Workspace-indexed data is *excluded* from these requests; auto routing excludes PyBot rules. Streams include source metadata; these are retrieval pointers, not guarantees of citation correctness.
+- Document uploads and Q&A refuse server-wide `--allow-remote` mode regardless of explicit model choice. Same-origin, DNS-rebinding and strict JSON controls stay in effect. Local inference servers may separately log prompts; restart without `--allow-remote` to use the browser document lane.
+- Extended cross-source isolation, token expiry/revocation, malformed input, size, HTTP and SSE tests; reviewed static layout in Chromium at 390/768/1440 widths. The sandbox blocks Chromium's actual loopback navigation, so real browser-to-server interaction QA is still outstanding.
+- Explicit persistence to the indexed library, actual scanned-PDF OCR, model-grounded citation entailment, CPU-time isolation for untrusted PDF parsing, multi-user auth, and cross-platform product QA remain future work.
+
 ## 0.6.0 — Knowledge Desk: work with real documents
 
 - Added local, bounded extraction for Word `.docx`, HTML, CSV/TSV using the Python standard library; optional `pypdf` enables text-based PDF ingestion with per-page markers. No OCR, macros, formula evaluation, external network, or implicit file crawling.

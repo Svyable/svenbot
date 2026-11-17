@@ -62,7 +62,7 @@
           <div class="orb" aria-hidden="true"><div class="orb-core">S</div></div>
           <p class="welcome-eyebrow">INTELLIGENCE, WHERE YOU LIVE.</p>
           <h1>Think freely.<br><em>Stay local.</em></h1>
-          <p class="intro">A private space for ideas, code, and hard questions—powered by models on your own hardware.</p>
+          <p class="intro">A private space for ideas, code, and hard questions—powered by models on your own hardware. Attach a document to ask about it temporarily, without adding it to your library.</p>
           <section class="setup-panel hidden" id="setup-panel" role="status" aria-live="polite">
             <strong id="setup-title">Checking local engines</strong>
             <p id="setup-description">Svenbot checks only the inference servers configured on this computer.</p>
@@ -78,6 +78,13 @@
       </div>
 
       <div class="composer-wrap">
+        <div class="document-toolbar" id="document-dropzone" aria-label="Temporary document workspace">
+          <label class="document-attach" for="document-input">+ Attach local document</label>
+          <input class="visually-hidden" type="file" id="document-input"
+                 accept=".pdf,.docx,.html,.htm,.csv,.tsv" aria-describedby="document-status">
+          <span id="document-status" role="status" aria-live="polite">Optional · PDF, Word, HTML or CSV · max 1 MB · memory only</span>
+          <button class="document-clear hidden" id="document-clear" type="button">Remove document</button>
+        </div>
         <form class="composer" id="prompt-form">
           <label for="prompt" class="visually-hidden">Message Svenbot</label>
           <textarea id="prompt" rows="1" maxlength="32000" placeholder="Ask anything. It stays on your machine." autocomplete="off" required></textarea>
@@ -89,7 +96,7 @@
             </div>
           </div>
         </form>
-        <p class="footer-note">Local inference depends on your configured model. Conversations are not saved by this web interface.</p>
+        <p class="footer-note">Attached documents exist only in server memory for up to 20 minutes. Remove them when finished. They are never added to your saved library automatically.</p>
       </div>
     </main>
   </div>
