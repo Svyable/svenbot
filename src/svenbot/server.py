@@ -79,7 +79,18 @@ def handler_factory(settings: Settings, db: str):
                 self._static(self.path)
             elif self.path == "/health":
                 self._json(200, {"status": "ok", "scope": "loopback",
-                                 "backend": settings.backend, "model": settings.model})
+                                 "backend": settings.backend,
+                                 "model": settings.model or settings.ollama_suggested_model})
+            elif self.path == "/v1/local/status":
+                # Read-only, same-origin/loopback protected diagnostic snapshot.
+                from .discovery import survey
+                from .rules import _upstream_root
+                report = survey(settings.ollama_url, settings.openai_url,
+                                allow_remote=settings.allow_remote)
+                report["pybot_available"] = _upstream_root() is not None
+                report["configured_backend"] = settings.backend
+                report["configured_model"] = settings.model or settings.ollama_suggested_model
+                self._json(200, report)
             elif self.path == "/v1/models":
                 self._json(200, {"object": "list", "data": [{"id": "svenbot", "object": "model"}]})
             else:
@@ -202,7 +213,7 @@ def handler_factory(settings: Settings, db: str):
     return Handler
 
 
-def serve(settings: Settings, db: str, port: int = 8765):
+def serve(settings: Settings, db: str, port: int = 8765, *, open_browser: bool = False):
     if not 1 <= port <= 65535:
         raise ValueError("Port must be 1–65535")
 
@@ -210,7 +221,14 @@ def serve(settings: Settings, db: str, port: int = 8765):
         daemon_threads = True
 
     with LocalServer(("127.0.0.1", port), handler_factory(settings, db)) as server:
-        print(f"Svenbot web chat: http://127.0.0.1:{port} (localhost only; Ctrl+C to stop)")
+        url = f"http://127.0.0.1:{port}"
+        print(f"Svenbot web chat: {url} (localhost only; Ctrl+C to stop)")
+        if open_browser:
+            import webbrowser
+            try:
+                webbrowser.open(url)
+            except Exception:
+                print("Could not open the browser automatically; copy the localhost URL above.")
         try:
             server.serve_forever()
         except KeyboardInterrupt:

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0 — Local Launch: read-only discovery and first-run guidance
+
+- Added `svenbot setup` (human/JSON output) and `svenbot models`: bounded read-only installed model inventory and best-effort physical/cgroup RAM observations; no automatic model pulls, remote telemetry or shell execution.
+- User-facing `ask`, `chat` and `web` choose a small-footprint **already-installed** Ollama model if no `--model` is supplied, while preserving explicit model selection. Disk size is not a runtime-memory, capability or quality guarantee.
+- Added same-origin `/v1/local/status` endpoint and browser first-run guidance when no inference engine is detected; no automatic browser polling, external assets or stored settings.
+- Added opt-in `svenbot web --open-browser` to open only the bound loopback URL.
+- Added 15 discovery/inventory regression tests including malicious metadata, zero-download protocol fixtures, local host/origin protections, explicit-model bypass and constrained-memory advisory.
+- Existing provider routing, streaming, evidence integrity, local-only defaults and persistence behavior remain unchanged. Hardware smoke tests and real browser visual QA are still release gates.
+
 ## 0.4.0 — First Light: streaming local web chat
 
 - New standalone, dependency-free local web chat at `svenbot web`, with intentional privacy defaults, accessible controls, mobile layout, stop/reset/copy and text-only rendering (no third-party assets, analytics, accounts or browser storage).

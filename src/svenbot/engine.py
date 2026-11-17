@@ -18,6 +18,8 @@ You have no ability to run commands, read unindexed files, or access the web."""
 class Settings:
     backend: str = "auto"
     model: str | None = None
+    # Advisory CLI discovery only. Never impose an Ollama tag on other backends.
+    ollama_suggested_model: str | None = None
     ollama_url: str = "http://127.0.0.1:11434"
     openai_url: str = "http://127.0.0.1:8080"
     allow_remote: bool = False
@@ -112,7 +114,7 @@ class Engine:
             started = perf_counter()
             try:
                 if candidate == "ollama":
-                    reply = chat_ollama(messages, model=self.settings.model or "llama3.2",
+                    reply = chat_ollama(messages, model=self.settings.model or self.settings.ollama_suggested_model or "llama3.2",
                                         base_url=self.settings.ollama_url, timeout=self.settings.timeout,
                                         allow_remote=self.settings.allow_remote)
                 elif candidate == "openai":
@@ -152,7 +154,7 @@ class Engine:
             iterator = None
             try:
                 if candidate == "ollama":
-                    iterator = iter(stream_ollama(messages, model=self.settings.model or "llama3.2",
+                    iterator = iter(stream_ollama(messages, model=self.settings.model or self.settings.ollama_suggested_model or "llama3.2",
                                                   base_url=self.settings.ollama_url,
                                                   timeout=self.settings.timeout,
                                                   allow_remote=self.settings.allow_remote))
