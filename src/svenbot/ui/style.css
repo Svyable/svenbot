@@ -4,3 +4,19 @@
 .setup-panel{margin:0 auto 25px;text-align:left;max-width:600px;padding:19px 22px;background:#13221f;border:1px solid #3b6558;border-radius:14px;color:#d4efe5}
 .setup-panel strong{font-size:13px}.setup-panel p{color:#a9bdb5;font-size:12px;line-height:1.65;margin:9px 0 13px}.setup-panel code{display:inline-block;font-size:12px;color:#b4f0d7;background:#081710;border:1px solid #416857;border-radius:7px;padding:9px 13px}
 .setup-panel.hidden{display:none}
+
+/* Local knowledge library — text-only DOM: never render indexed HTML. */
+.knowledge-panel{width:min(820px,calc(100% - 40px));padding:40px 0 46px;align-self:center}
+.knowledge-panel.hidden{display:none}.knowledge-panel h1{font-family:Georgia,serif;font-size:clamp(38px,5vw,60px);font-weight:400;margin:5px 0 12px}
+.knowledge-panel>p{color:#9fb1b4;line-height:1.65;font-size:13px}.knowledge-panel code{color:#a1ecd1}
+.knowledge-panel h2{font-size:13px;text-transform:uppercase;letter-spacing:.13em;margin:35px 0 15px;color:#b7d5ce}
+.knowledge-form{display:flex;gap:9px;margin:26px 0 15px}.knowledge-form input{min-width:0;flex:1;border:1px solid #40564f;background:#101920;color:#f0fff7;padding:13px;border-radius:11px;font:inherit}
+.knowledge-form button{border:0;border-radius:10px;background:#b7f0d5;color:#142e26;padding:10px 20px;font-weight:700}
+.knowledge-status{min-height:20px}.knowledge-results{display:flex;flex-direction:column;gap:12px}
+.knowledge-hit{border:1px solid #30413f;background:#131d25;border-radius:13px;padding:16px}.knowledge-hit strong{display:block;color:#b7eedc;font-size:12px;overflow-wrap:anywhere}
+.knowledge-hit pre{margin:12px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;color:#cbd8da;line-height:1.6;font:12px/1.6 ui-monospace,monospace}
+.knowledge-files{list-style:none;padding:0}.knowledge-files li{border-bottom:1px solid #2b383c;padding:11px 0;overflow-wrap:anywhere;font-size:12px;color:#c5d7d2}
+.knowledge-files small{color:#788b90;padding-left:9px}.knowledge-footnote{border-top:1px solid #27373a;margin-top:36px;padding-top:20px}
+
+.knowledge-top{background:transparent;border:1px solid #3b514a;border-radius:10px;padding:9px 12px;color:#b9e5d5;font-size:11px;white-space:nowrap;margin-left:auto;margin-right:15px}
+.knowledge-top:hover,.knowledge-top:focus-visible{background:#19312b}

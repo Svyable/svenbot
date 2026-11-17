@@ -4,13 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "svenbot"
-version = "0.5.0"
+version = "0.6.0"
 description = "Local-first AI with transparent backends, optional PyBot rules, and private retrieval"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 authors = [{name = "Svyable"}]
 dependencies = []
+
+[project.optional-dependencies]
+documents = ["pypdf>=5,<8"]
 keywords = ["local-ai", "ollama", "llama-cpp", "chatbot", "retrieval"]
 
 [project.scripts]

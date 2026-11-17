@@ -39,7 +39,7 @@ jobs:
           wheels = list(Path('dist').glob('svenbot-*.whl'))
           assert len(wheels) == 1, wheels
           with ZipFile(wheels[0]) as wheel:
-              for path in ('svenbot/discovery.py', 'svenbot/ui/index.html',
+              for path in ('svenbot/discovery.py', 'svenbot/documents.py', 'svenbot/ui/index.html',
                            'svenbot/ui/app.js', 'svenbot/ui/style.css'):
                   assert path in wheel.namelist(), path
           PY

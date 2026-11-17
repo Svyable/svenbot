@@ -26,6 +26,8 @@ class Settings:
     timeout: float = 120
     session: str | None = None
     workspace: str | None = None
+    # File Q&A must never quietly fall back to uncited rule responses.
+    rules_fallback: bool = True
 
 
 @dataclass(frozen=True)
@@ -55,6 +57,8 @@ class Engine:
     def __init__(self, settings: Settings, store: Store | None = None):
         if settings.backend not in ("auto", "ollama", "openai", "rules"):
             raise ValueError("Invalid backend: " + settings.backend)
+        if settings.backend == "rules" and not settings.rules_fallback:
+            raise ValueError("This operation requires a local LLM, not the rules engine")
         if settings.session and store is None:
             raise ValueError("A Store is required for persistent sessions")
         self.settings = settings
@@ -75,13 +79,15 @@ class Engine:
             return self.store.history(self.workspace, self.settings.session)
         return self._history[-16:]
 
-    def _prepare(self, prompt: str, prior: list[dict] | None):
+    def _prepare(self, prompt: str, prior: list[dict] | None,
+                 source_override: list[Hit] | None = None):
         prompt = prompt.strip()
         if not prompt:
             raise ValueError("Prompt must not be empty")
         if len(prompt) > 32_000:
             raise ValueError("Prompt exceeds 32,000 characters")
-        sources = self.store.search(self.workspace, prompt) if self.store and self.settings.workspace else []
+        sources = (source_override if source_override is not None else
+                   self.store.search(self.workspace, prompt) if self.store and self.settings.workspace else [])
         system = SYSTEM
         if sources:
             references = "\n\n".join(
@@ -103,14 +109,16 @@ class Engine:
                                   {"role": "assistant", "content": reply}])
             self._history = self._history[-16:]
 
-    def ask(self, prompt: str, *, prior: list[dict] | None = None) -> Answer:
-        prompt, messages, sources = self._prepare(prompt, prior)
+    def ask(self, prompt: str, *, prior: list[dict] | None = None,
+            source_override: list[Hit] | None = None) -> Answer:
+        prompt, messages, sources = self._prepare(prompt, prior, source_override)
         mode = self.settings.backend
         errors: list[str] = []
         chosen = ""
         reply = ""
         attempts: list[Attempt] = []
-        for candidate in (["ollama", "openai", "rules"] if mode == "auto" else [mode]):
+        for candidate in ((["ollama", "openai"] + (["rules"] if self.settings.rules_fallback else []))
+                          if mode == "auto" else [mode]):
             started = perf_counter()
             try:
                 if candidate == "ollama":
@@ -145,7 +153,7 @@ class Engine:
         """
         prompt, messages, _sources = self._prepare(prompt, prior)
         mode = self.settings.backend
-        candidates = ["ollama", "openai", "rules"] if mode == "auto" else [mode]
+        candidates = (["ollama", "openai"] + (["rules"] if self.settings.rules_fallback else [])) if mode == "auto" else [mode]
         attempts: list[Attempt] = []
         for candidate in candidates:
             started = perf_counter()

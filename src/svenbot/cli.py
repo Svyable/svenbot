@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shlex
 import sys
 from pathlib import Path
@@ -35,6 +36,21 @@ def parser() -> argparse.ArgumentParser:
     ask.add_argument("--stream", action="store_true", help="print response tokens as they arrive")
     chat = subs.add_parser("chat", parents=[common], help="interactive streaming terminal chat")
     chat.add_argument("--no-stream", action="store_true", help="wait for the full response before printing")
+    onefile = subs.add_parser("ask-file", parents=[common],
+                              help="ask a single PDF/Word/HTML/CSV/text file without storing an index")
+    onefile.add_argument("path", help="explicit local file to read")
+    onefile.add_argument("question", help="question about this file")
+    onefile.add_argument("--max-chunks", type=int, default=8,
+                         help="max indexed excerpts supplied to local model (1–12)")
+    library = subs.add_parser("library", help="list files explicitly indexed in this workspace")
+    library.add_argument("--workspace", default=".")
+    library.add_argument("--db", default=str(default_db_path()))
+    library.add_argument("--json", action="store_true")
+    forget = subs.add_parser("forget", help="remove one file from an index, keeping its original")
+    forget.add_argument("path", help="relative path exactly as shown by 'svenbot library'")
+    forget.add_argument("--workspace", default=".")
+    forget.add_argument("--db", default=str(default_db_path()))
+    forget.add_argument("--yes", action="store_true", help="confirm removing indexed text")
     index = subs.add_parser("index", help="explicitly add text/code files to local FTS search")
     index.add_argument("path")
     index.add_argument("--workspace", default=".")
@@ -105,14 +121,19 @@ def make_engine(args) -> tuple[Engine, Store | None]:
     return Engine(settings, store), store
 
 
+def _terminal_text(value: str) -> str:
+    """Keep untrusted model/source strings from writing terminal control sequences."""
+    return re.sub(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]", "�", value)
+
+
 def emit(answer, verbose: bool):
-    print(answer.text)
+    print(_terminal_text(answer.text))
     if verbose:
         print(f"[backend: {answer.backend}]", file=sys.stderr)
         for attempt in answer.attempts:
             print(f"[route: {attempt.backend} {attempt.status} {attempt.elapsed_ms:.1f} ms]", file=sys.stderr)
         for i, h in enumerate(answer.sources, 1):
-            print(f"[source {i}: {h.path}:{h.line}-{h.end_line or h.line}]", file=sys.stderr)
+            print(f"[source {i}: {json.dumps(h.path, ensure_ascii=True)}:{h.line}-{h.end_line or h.line}]", file=sys.stderr)
 
 
 def emit_stream(engine: Engine, prompt: str, verbose: bool):
@@ -130,7 +151,7 @@ def emit_stream(engine: Engine, prompt: str, verbose: bool):
                               file=sys.stderr)
                 continue
             # Model output is untrusted terminal text; strip escape/control bytes.
-            safe = re.sub(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]", "�", part.text)
+            safe = _terminal_text(part.text)
             print(safe, end="", flush=True)
             printed = True
     finally:
@@ -179,6 +200,72 @@ def main(argv: list[str] | None = None) -> int:
             finally:
                 if store:
                     store.close()
+        elif args.command == "ask-file":
+            if args.session or args.workspace:
+                raise ValueError("ask-file is ephemeral; omit --session and --workspace")
+            if args.backend == "rules":
+                raise ValueError("ask-file requires a local LLM; the rules engine cannot read files")
+            if not 1 <= args.max_chunks <= 12:
+                raise ValueError("--max-chunks must be between 1 and 12")
+            selected = Path(args.path).expanduser()
+            if not selected.is_file() or selected.is_symlink():
+                raise ValueError("Choose an ordinary, non-symlink local file")
+            workspace = selected.parent.resolve()
+            # An in-memory SQLite snapshot: no persistent index, conversation or temp file.
+            store = Store(":memory:")
+            try:
+                indexed, skipped = store.add_path(selected, workspace)
+                if indexed != 1:
+                    raise ValueError("File not indexable; check extension, encoding, size and sensitivity filters")
+                sources = store.search(workspace, args.question, limit=args.max_chunks)
+                if not sources:
+                    sources = store.file_chunks(workspace, selected.name, limit=args.max_chunks)
+                if not sources:
+                    raise ValueError("No selectable text was extracted from this file")
+                # Mirror installed-model discovery without changing the separate compatible-server alias.
+                suggested = None
+                if args.model is None and args.backend in ("auto", "ollama"):
+                    from .discovery import list_ollama_models, recommend_installed
+                    try:
+                        candidate = recommend_installed(list_ollama_models(args.ollama_url,
+                                                    allow_remote=args.allow_remote))
+                        suggested = candidate.name if candidate else None
+                    except BackendError:
+                        pass
+                settings = Settings(backend=args.backend, model=args.model, ollama_url=args.ollama_url,
+                                    openai_url=args.openai_url, allow_remote=args.allow_remote,
+                                    ollama_suggested_model=suggested, workspace=str(workspace),
+                                    rules_fallback=False)
+                answer = Engine(settings, store).ask(args.question, prior=[], source_override=sources)
+                emit(answer, args.verbose)
+                print(f"[source excerpts: {len(sources)}; ephemeral index; no conversation saved]",
+                      file=sys.stderr)
+            finally:
+                store.close()
+        elif args.command == "library":
+            store = Store(args.db)
+            try:
+                rows = store.list_files(args.workspace)
+                if args.json:
+                    print(json.dumps({"workspace": workspace_key(args.workspace), "files": rows},
+                                     ensure_ascii=True, indent=2))
+                else:
+                    for row in rows:
+                        print(f"{json.dumps(row['path'], ensure_ascii=True)} "
+                              f"({row['chunks']} chunks; sha256={row['sha256'][:12]}...)")
+                    print(f"{len(rows)} indexed file(s) listed (max 500)")
+            finally:
+                store.close()
+        elif args.command == "forget":
+            if not args.yes:
+                raise ValueError("Pass --yes to remove a file's indexed text; original file is untouched")
+            store = Store(args.db)
+            try:
+                if not store.forget_file(args.workspace, args.path):
+                    raise ValueError("Indexed file not found in this workspace")
+                print(f"Removed {json.dumps(args.path)} from the local index; original left untouched")
+            finally:
+                store.close()
         elif args.command == "index":
             store = Store(args.db)
             try:
@@ -252,7 +339,8 @@ def main(argv: list[str] | None = None) -> int:
             store = Store(args.db)
             try:
                 for hit in store.search(args.workspace, args.query):
-                    print(f"{hit.path}:{hit.line}-{hit.end_line or hit.line} [chunk {hit.chunk_id}]\n{hit.excerpt}\n")
+                    print(f"{json.dumps(hit.path, ensure_ascii=True)}:{hit.line}-{hit.end_line or hit.line} "
+                          f"[chunk {hit.chunk_id}]\n{json.dumps(hit.excerpt, ensure_ascii=True)}\n")
             finally:
                 store.close()
         elif args.command == "models":
