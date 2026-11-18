@@ -6,6 +6,19 @@ Svenbot is an independent, local-first orchestration project inspired by [Huggin
 
 It is a **working 0.7 beta, not yet the best local AI assistant**. We intend to earn that through reproducible benchmarks, latency and memory efficiency, extensibility, and safety—not marketing claims.
 
+## Chrome Companion (new alpha)
+
+Svenbot now includes an optional **read-only Chrome MV3 side panel**. Choose a tab, inspect extracted visible text, and optionally analyze selected excerpts with a paired locally served model (Ollama or llama.cpp). Chrome asks for localhost access only when you choose to pair. No all-sites permissions, automatic scans, hidden cloud fallbacks or browser actions.
+
+**[Installation, pairing, security and limitations](extension/README.md).** This release does **not** yet run open-weight inference inside WebGPU; that is a separately tracked experiment. Chrome extension end-to-end testing on an actual user machine is still needed.
+
+```sh
+python extension/build.py
+# Load the extracted dist/svenbot-companion-alpha.zip using chrome://extensions
+# Copy the displayed extension ID and start a local model bridge:
+svenbot bridge --extension-id YOUR_32_LETTER_ID --backend ollama --model llama3.2
+```
+
 ## Quick start
 
 Python 3.10+; the base installation has no Python runtime dependencies. Text-based PDF parsing is optional.

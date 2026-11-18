@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1 — Chrome Companion alpha
+
+- Added an optional Chrome MV3 side panel that reads only the explicitly selected active webpage and previews source text before user-triggered model analysis.
+- Added an isolated `svenbot bridge` command: loopback-only, token-paired with one extension ID, no database, remote inference or browser actions. Its sole AI operation selects bounded page excerpts and asks a configured already-installed local LLM.
+- Added browser extension tests, deterministic extension ZIP packaging and CI checks. Browser model inference via WebGPU, real-device extension QA and agent actions remain unimplemented.
+
 ## 0.7.0 — Private document drop (First Light)
 
 - Added an explicit, opt-in single-document attachment in the local browser chat: `.docx`, `.html`/`.htm`, `.csv`/`.tsv`, and optional text-based `.pdf` via `svenbot[documents]`. Users can choose or drop a document, ask follow-up questions, see source excerpt line labels, replace the attachment, and remove it; the conversation resets when a document changes.
