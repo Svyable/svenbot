@@ -39,7 +39,44 @@ jobs:
           wheels = list(Path('dist').glob('svenbot-*.whl'))
           assert len(wheels) == 1, wheels
           with ZipFile(wheels[0]) as wheel:
-              for path in ('svenbot/discovery.py', 'svenbot/documents.py', 'svenbot/document_sessions.py', 'svenbot/ui/index.html',
+              for path in ('svenbot/discovery.py', 'svenbot/documents.py', 'svenbot/document_sessions.py', 'svenbot/extension_bridge.py', 'svenbot/ui/index.html',
                            'svenbot/ui/app.js', 'svenbot/ui/style.css'):
                   assert path in wheel.namelist(), path
           PY
+
+  extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Validate MV3 JavaScript syntax
+        run: |
+          node --check extension/companion/background.js
+          node --check extension/companion/reader.js
+          node --check extension/companion/panel.js
+      - run: node --test extension/companion/tests/*.cjs
+      - run: python extension/build.py --output dist/svenbot-companion-alpha.zip
+      - name: Verify extension package and permission budget
+        run: |
+          python - <<'PY'
+          import json
+          from zipfile import ZipFile
+          with ZipFile('dist/svenbot-companion-alpha.zip') as z:
+              j = json.loads(z.read('manifest.json'))
+              assert j['manifest_version'] == 3
+              assert set(j['permissions']) == {'activeTab', 'scripting', 'sidePanel', 'storage'}
+              assert j['optional_host_permissions'] == ['http://127.0.0.1/*']
+              assert not j.get('host_permissions')
+              assert set(z.namelist()) == {'manifest.json', 'background.js', 'reader.js', 'panel.html', 'panel.css', 'panel.js'}
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: svenbot-companion-alpha
+          path: dist/svenbot-companion-alpha.zip

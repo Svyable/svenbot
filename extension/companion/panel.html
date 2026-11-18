@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Svenbot Companion</title>
+  <link rel="stylesheet" href="panel.css">
+  <script src="reader.js" defer></script>
+  <script src="panel.js" defer></script>
+</head>
+<body>
+  <main>
+    <header class="topline">
+      <div class="mark" aria-hidden="true">S</div>
+      <div>
+        <div class="eyebrow">LOCAL INTELLIGENCE</div>
+        <h1>Svenbot <span>Companion</span></h1>
+      </div>
+      <span class="alpha">ALPHA</span>
+    </header>
+    <section class="card intro" aria-label="Page reader">
+      <div class="section-title"><span>01</span> Current page</div>
+      <p>Nothing is read until you press the button. Chrome grants access to the selected tab only.</p>
+      <button id="capture" class="primary">Read selected tab</button>
+      <div id="page-status" class="status" role="status" aria-live="polite">No page selected.</div>
+      <div id="page-preview" class="preview" hidden></div>
+    </section>
+    <section class="card analysis" aria-label="Local model analysis">
+      <div class="section-title"><span>02</span> Ask your local model</div>
+      <p>The selected excerpts stay on your computer. Pair the extension with a separate Svenbot process to enable model answers.</p>
+      <details id="pairing">
+        <summary>Pair with Svenbot <span id="pair-label">Not connected</span></summary>
+        <label for="extid">This extension's ID</label>
+        <div class="copyline"><code id="extid"></code><button id="copy-id" class="subtle" type="button">Copy</button></div>
+        <p class="tiny">In a terminal, run:</p>
+        <code class="command">svenbot bridge --extension-id YOUR_EXTENSION_ID --backend ollama --model YOUR_INSTALLED_MODEL</code>
+        <label for="token">Paste the session token printed in that terminal</label>
+        <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="Session-only token" aria-describedby="token-help">
+        <div id="token-help" class="tiny">Token is kept in extension session storage only, never on a website.</div>
+        <button id="connect" class="secondary" type="button">Connect to local Svenbot</button>
+      </details>
+      <form id="ask-form">
+        <label for="question">Question</label>
+        <textarea id="question" rows="3" maxlength="1000" placeholder="What are the most important claims on this page?"></textarea>
+        <div class="examples">
+          <button class="chip" type="button" data-question="Summarize the important findings, citing the supplied excerpts.">Summarize</button>
+          <button class="chip" type="button" data-question="Identify unsupported claims and important caveats in the supplied excerpts.">Critique claims</button>
+          <button class="chip" type="button" data-question="Extract the key ideas and suggest follow-up research questions.">Research ideas</button>
+        </div>
+        <button id="ask" type="submit" class="primary" disabled>Analyze with local model</button>
+      </form>
+      <div id="analysis-status" class="status" aria-live="polite"></div>
+      <article id="answer-card" class="answer" hidden>
+        <div class="answer-head"><strong>Analysis</strong><span id="backend" class="backend"></span></div>
+        <pre id="answer"></pre>
+        <button id="copy-answer" type="button" class="subtle">Copy answer</button>
+      </article>
+      <div id="sources" class="sources" hidden>
+        <div class="section-title">Source excerpts <span class="note">Exact page text, not verified support</span></div>
+        <div id="source-items"></div>
+      </div>
+    </section>
+    <footer>Read-only · No autonomous clicks · No cloud fallback · <button id="clear" class="link" type="button">Clear page + answer</button></footer>
+  </main>
+</body>
+</html>

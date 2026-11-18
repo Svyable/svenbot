@@ -98,6 +98,14 @@ def parser() -> argparse.ArgumentParser:
     web.add_argument("--port", type=int, default=8765)
     web.add_argument("--open-browser", action="store_true",
                      help="open the local chat URL in your default browser")
+    bridge = subs.add_parser("bridge", help="paired read-only Chrome extension bridge; localhost only")
+    bridge.add_argument("--extension-id", required=True,
+                        help="the 32-letter Chrome extension ID from chrome://extensions")
+    bridge.add_argument("--backend", choices=["auto", "ollama", "openai"], default="auto")
+    bridge.add_argument("--model", default=None, help="already-installed local model name")
+    bridge.add_argument("--ollama-url", default="http://127.0.0.1:11434")
+    bridge.add_argument("--openai-url", default="http://127.0.0.1:8080")
+    bridge.add_argument("--port", type=int, default=8767)
     return p
 
 
@@ -200,6 +208,13 @@ def main(argv: list[str] | None = None) -> int:
             finally:
                 if store:
                     store.close()
+        elif args.command == "bridge":
+            from .extension_bridge import serve as serve_extension_bridge
+            settings = Settings(backend=args.backend, model=args.model,
+                                ollama_url=args.ollama_url, openai_url=args.openai_url,
+                                allow_remote=False, session=None, workspace=None,
+                                rules_fallback=False)
+            serve_extension_bridge(settings, args.extension_id, args.port)
         elif args.command == "ask-file":
             if args.session or args.workspace:
                 raise ValueError("ask-file is ephemeral; omit --session and --workspace")
