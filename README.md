@@ -4,13 +4,13 @@
 
 Svenbot is an independent, local-first orchestration project inspired by [Hugging Face PyBot](https://github.com/huggingface/pybot). PyBot took a wonderfully strange approach: hundreds of thousands of lines of hand-written/generated Python rules instead of model weights. Svenbot keeps that experiment available as an **optional, pinned upstream submodule**, and adds actual on-device LLM inference, local retrieval, opt-in conversation persistence, and a small local HTTP interface.
 
-It is a **working 0.7 beta, not yet the best local AI assistant**. We intend to earn that through reproducible benchmarks, latency and memory efficiency, extensibility, and safety—not marketing claims.
+It is an **experimental 0.7 beta, not a release-proven Chrome extension or the best local AI assistant**. We intend to earn that through reproducible benchmarks, latency and memory efficiency, extensibility, and safety—not marketing claims.
 
 ## Chrome Companion (new alpha)
 
-Svenbot now includes an optional **read-only Chrome MV3 side panel**. Choose a tab, inspect extracted visible text, and optionally analyze selected excerpts with a paired locally served model (Ollama or llama.cpp). Chrome asks for localhost access only when you choose to pair. No all-sites permissions, automatic scans, hidden cloud fallbacks or browser actions.
+Svenbot includes an optional **read-only Chrome MV3 side panel**. Choose a tab, inspect extracted visible text, **find exact passages offline without a model**, and optionally analyze selected excerpts with a paired locally served model (Ollama or llama.cpp). Chrome asks for localhost access only when you choose to pair. The pairing view checks only local endpoint inventory and now distinguishes the bridge being paired from a model being listed/reachable. No all-sites permissions, automatic scans, hidden cloud fallbacks or browser actions.
 
-**[Installation, pairing, security and limitations](extension/README.md).** This release does **not** yet run open-weight inference inside WebGPU; that is a separately tracked experiment. Chrome extension end-to-end testing on an actual user machine is still needed.
+**[Installation, pairing, security and limitations](extension/README.md).** This release does **not** yet run open-weight inference inside WebGPU; that is a separately tracked experiment. Chrome extension end-to-end testing on an actual user machine is still needed: the managed Chromium here disables all extensions, so a real unpacked installation cannot be certified from our passing protocol and mock UI tests.
 
 ```sh
 python extension/build.py

@@ -9,7 +9,10 @@ let controller = null;
 
 const byId = name => document.getElementById(name);
 function status(text, id = 'analysis-status') { byId(id).textContent = text; }
-function refresh() { byId('ask').disabled = !page || !paired || !!controller; }
+function refresh() {
+  byId('ask').disabled = !page || !paired || !!controller;
+  byId('find').disabled = !page || !!controller;
+}
 function clearAnalysis() {
   byId('answer-card').hidden = true;
   byId('answer').textContent = '';
@@ -65,9 +68,55 @@ async function connect() {
   paired = true;
   await chrome.storage.session.set({pairingToken: proposed});
   byId('token').value = '';
-  byId('pair-label').textContent = `Connected · ${data.backend}`;
+  const inference = data.inference?.status || 'unverified';
+  const readable = ({model_listed:'model listed', models_present_unverified:'models detected',
+    model_not_listed:'model not listed', no_models:'no models',
+    endpoint_reachable:'endpoint reachable', endpoint_unavailable:'model server offline'})[inference] || 'not checked';
+  byId('pair-label').textContent = `Paired · ${readable}`;
   byId('pairing').open = false;
-  status('Paired with local Svenbot. No data has been transmitted yet.');
+  status(`Paired with Svenbot. ${readable}. This is a read-only endpoint check, not proof of successful inference; no page text was sent.`);
+  refresh();
+}
+
+function presentSources(refs) {
+  const root = byId('source-items');
+  root.replaceChildren();
+  for (const source of refs) {
+    const card = document.createElement('div'); card.className = 'source-item';
+    const label = document.createElement('div'); label.className = 'source-label';
+    label.textContent = `[source ${root.childElementCount + 1}] · ${source.block_id} · page block ${source.page_block_number}`;
+    const excerpt = document.createElement('p'); excerpt.textContent = source.text;
+    card.append(label, excerpt); root.append(card);
+  }
+  byId('sources').hidden = refs.length === 0;
+}
+
+function findSourcesOffline() {
+  if (!page || controller) return;
+  const question = byId('question').value.trim();
+  clearAnalysis();
+  if (!question) { status('Enter search terms in the Question box first.'); return; }
+  const hits = matchPageEvidence(page, question);
+  byId('answer').textContent = hits.length
+    ? `Found ${hits.length} matching captured passage(s). No AI or network was used. These are lexical matches, not verified answers.`
+    : 'No matching captured passages. This is a text match, not a judgment that the page lacks an answer.';
+  byId('backend').textContent = 'offline · exact text';
+  byId('answer-card').hidden = false;
+  presentSources(hits.map(h => ({block_id:h.id, text:h.text, page_block_number:h.position+1})));
+  status('Offline source lookup complete. Page text has not left this extension.');
+}
+
+async function disconnect() {
+  if (controller) controller.abort();
+  paired = false; sessionToken = '';
+  await chrome.storage.session.remove('pairingToken');
+  try { await chrome.permissions.remove({origins:['http://127.0.0.1/*']}); }
+  catch (_) { /* Revocation may be unavailable; the session token is gone. */ }
+  byId('token').value = '';
+  byId('pair-label').textContent = 'Not connected';
+  byId('pairing').open = true;
+  clearAnalysis();
+  status('Disconnected. Session pairing token forgotten; reconnect to use a local model.');
   refresh();
 }
 
@@ -94,16 +143,7 @@ async function analyze(event) {
     byId('answer').textContent = data.answer || '(No response)';
     byId('backend').textContent = data.backend || 'local';
     byId('answer-card').hidden = false;
-    const root = byId('source-items');
-    root.replaceChildren();
-    for (const source of (data.references || [])) {
-      const card = document.createElement('div');card.className='source-item';
-      const label = document.createElement('div');label.className='source-label';
-      label.textContent = `[source ${root.childElementCount + 1}] · ${source.block_id} · page block ${source.page_block_number}`;
-      const excerpt = document.createElement('p'); excerpt.textContent = source.text;
-      card.append(label,excerpt);root.append(card);
-    }
-    byId('sources').hidden = !data.references?.length;
+    presentSources(data.references || []);
     status('Complete · Excerpts are exact captured text, not verification of model claims.');
   } catch (e) {
     status(e?.name === 'AbortError' ? 'Cancelled or timed out. No result saved.' :
@@ -123,6 +163,10 @@ async function bootstrap() {
   });
   byId('connect').addEventListener('click', async () => {
     try { await connect(); } catch (e) { paired=false;sessionToken='';refresh();status(e.message); }
+  });
+  byId('find').addEventListener('click', findSourcesOffline);
+  byId('disconnect').addEventListener('click', () => {
+    disconnect().catch(e => status(`Could not complete disconnect: ${e.message}`));
   });
   byId('copy-id').addEventListener('click', () => navigator.clipboard.writeText(chrome.runtime.id));
   byId('copy-answer').addEventListener('click', () => navigator.clipboard.writeText(byId('answer').textContent));
