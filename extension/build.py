@@ -7,7 +7,7 @@ from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 ROOT = Path(__file__).resolve().parent / "companion"
-FILES = ["manifest.json", "background.js", "reader.js", "panel.html", "panel.css", "panel.js"]
+FILES = ["manifest.json", "background.js", "reader.js", "page-tools.js", "panel.html", "panel.css", "panel.js"]
 
 
 def build(output: str | Path) -> Path:

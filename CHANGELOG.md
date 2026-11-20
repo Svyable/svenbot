@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.2 — Trust-but-verify Chrome alpha
+
+- Added **Find exact passages · Offline** inside the Chrome companion. It searches only user-captured page excerpts without invoking a model, using the network, or pretending lexical matches are AI answers. Added explicit **Disconnect & forget pairing** to clear the session token and request localhost-permission removal.
+- Fixed a misleading readiness state: the bridge now performs a bounded, read-only **local model inventory/endpoint check** when an authenticated extension explicitly connects. It distinguishes a paired bridge from a listed model, an unverified model server, a missing model, or an offline endpoint; **none** implies proven model inference or quality.
+- Added real HTTP integration tests through the *unmocked Svenbot engine* to protocol-compatible loopback Ollama/OpenAI fixture servers, plus independent invalid-origin/token checks. No live weights or consumer hardware are implied.
+- Added deterministic offline-match JavaScript tests and an optional, honestly labeled mocked Chromium UI smoke script. Reproduced real Chrome validation blocker: the development environment enforces managed Chromium `ExtensionInstallBlocklist: ["*"]` and `URLBlocklist: ["*"]`. No attempt was made to bypass device policy; manual unpacked-extension QA remains open.
+- Packaging, Python/Node CI and v0.7.2 wheel/extension version updated.
+
 ## 0.7.1 — Chrome Companion alpha
 
 - Added an optional Chrome MV3 side panel that reads only the explicitly selected active webpage and previews source text before user-triggered model analysis.

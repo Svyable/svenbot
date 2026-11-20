@@ -6,6 +6,7 @@
   <title>Svenbot Companion</title>
   <link rel="stylesheet" href="panel.css">
   <script src="reader.js" defer></script>
+  <script src="page-tools.js" defer></script>
   <script src="panel.js" defer></script>
 </head>
 <body>
@@ -38,6 +39,7 @@
         <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="Session-only token" aria-describedby="token-help">
         <div id="token-help" class="tiny">Token is kept in extension session storage only, never on a website.</div>
         <button id="connect" class="secondary" type="button">Connect to local Svenbot</button>
+        <button id="disconnect" class="subtle" type="button">Disconnect &amp; forget pairing</button>
       </details>
       <form id="ask-form">
         <label for="question">Question</label>
@@ -47,6 +49,7 @@
           <button class="chip" type="button" data-question="Identify unsupported claims and important caveats in the supplied excerpts.">Critique claims</button>
           <button class="chip" type="button" data-question="Extract the key ideas and suggest follow-up research questions.">Research ideas</button>
         </div>
+        <button id="find" type="button" class="secondary" disabled>Find exact passages · Offline</button>
         <button id="ask" type="submit" class="primary" disabled>Analyze with local model</button>
       </form>
       <div id="analysis-status" class="status" aria-live="polite"></div>

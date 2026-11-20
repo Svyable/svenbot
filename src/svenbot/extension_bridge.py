@@ -14,7 +14,7 @@ import secrets
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .engine import Engine, Settings
-from .providers import BackendError, validate_base_url
+from .providers import BackendError, request_json, validate_base_url
 from .store import Hit
 
 EXTENSION_ID_RE = re.compile(r"[a-p]{32}\Z")
@@ -98,6 +98,42 @@ def select_references(payload: object) -> tuple[str, str, list[Hit], list[dict]]
     return question.strip(), title, hits, refs
 
 
+def model_readiness(settings: Settings) -> dict[str, str]:
+    """Read-only local endpoint diagnostic, not a model inference or quality test.
+
+    Returned statuses deliberately distinguish a paired bridge from a working
+    chat model. They disclose no backend exception strings or private prompts.
+    """
+    routes = ("ollama", "openai") if settings.backend == "auto" else (settings.backend,)
+    partial = None
+    for candidate in routes:
+        try:
+            if candidate == "ollama":
+                data = request_json(settings.ollama_url, "/api/tags", timeout=1.0)
+                models = data.get("models")
+                if not isinstance(models, list) or not models:
+                    partial = {"status": "no_models", "backend": candidate}
+                    if settings.backend == "auto":
+                        continue
+                    return partial
+                selected = settings.model
+                if selected:
+                    names = {m.get("name") for m in models if isinstance(m, dict) and isinstance(m.get("name"), str)}
+                    matches = selected in names or (":" not in selected and selected + ":latest" in names)
+                    if not matches and settings.backend == "auto":
+                        partial = {"status": "model_not_listed", "backend": candidate}
+                        continue
+                    return {"status": "model_listed" if matches else "model_not_listed", "backend": candidate}
+                # Inventories do not prove model suitability or invocation success.
+                return {"status": "models_present_unverified", "backend": candidate}
+            data = request_json(settings.openai_url, "/v1/models", timeout=1.0)
+            if isinstance(data.get("data"), list):
+                return {"status": "endpoint_reachable", "backend": candidate}
+        except BackendError:
+            pass
+    return partial or {"status": "endpoint_unavailable", "backend": settings.backend}
+
+
 def handler_factory(settings: Settings, extension_id: str, token: str):
     validate_settings(settings, extension_id)
     if not isinstance(token, str) or len(token) < 40:
@@ -165,7 +201,9 @@ def handler_factory(settings: Settings, extension_id: str, token: str):
             else:
                 self._write(200, {"connected": True, "scope": "read-only-page-analysis",
                                   "backend": settings.backend, "model": settings.model,
-                                  "persistence": "none"}, cors=True)
+                                  "persistence": "none", "inference": model_readiness(settings),
+                                  "inference_notice": "Read-only local inventory check; not an inference smoke test."},
+                            cors=True)
 
         def do_POST(self):
             if self.path != "/v1/extension/analyze":

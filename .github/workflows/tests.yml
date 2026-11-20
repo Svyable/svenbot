@@ -60,6 +60,7 @@ jobs:
         run: |
           node --check extension/companion/background.js
           node --check extension/companion/reader.js
+          node --check extension/companion/page-tools.js
           node --check extension/companion/panel.js
       - run: node --test extension/companion/tests/*.cjs
       - run: python extension/build.py --output dist/svenbot-companion-alpha.zip
@@ -74,7 +75,7 @@ jobs:
               assert set(j['permissions']) == {'activeTab', 'scripting', 'sidePanel', 'storage'}
               assert j['optional_host_permissions'] == ['http://127.0.0.1/*']
               assert not j.get('host_permissions')
-              assert set(z.namelist()) == {'manifest.json', 'background.js', 'reader.js', 'panel.html', 'panel.css', 'panel.js'}
+              assert set(z.namelist()) == {'manifest.json', 'background.js', 'reader.js', 'page-tools.js', 'panel.html', 'panel.css', 'panel.js'}
           PY
       - uses: actions/upload-artifact@v4
         with:

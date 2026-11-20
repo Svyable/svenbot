@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Svenbot Companion (Alpha)",
   "description": "Analyze the current page with source excerpts and an explicitly paired local Svenbot model.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab", "scripting", "sidePanel", "storage"],
   "optional_host_permissions": ["http://127.0.0.1/*"],
