@@ -3,6 +3,7 @@
 // or browser actions beyond the single user-initiated activeTab read.
 const HOST = 'http://127.0.0.1:8767';
 let page = null;
+let secondPage = null;
 let sessionToken = '';
 let paired = false;
 let controller = null;
@@ -12,6 +13,9 @@ function status(text, id = 'analysis-status') { byId(id).textContent = text; }
 function refresh() {
   byId('ask').disabled = !page || !paired || !!controller;
   byId('find').disabled = !page || !!controller;
+  byId('capture-compare').disabled = !page || !!controller;
+  byId('compare-offline').disabled = !page || !secondPage || !!controller;
+  byId('compare-online').disabled = !page || !secondPage || !paired || !!controller;
 }
 function clearAnalysis() {
   byId('answer-card').hidden = true;
@@ -22,6 +26,7 @@ function clearAnalysis() {
 }
 function setPage(next) {
   page = next;
+  setSecondPage(null);
   clearAnalysis();
   byId('page-preview').hidden = !next;
   if (next) {
@@ -31,6 +36,21 @@ function setPage(next) {
   } else {
     byId('page-preview').textContent = '';
     status('No page selected.', 'page-status');
+  }
+  refresh();
+}
+
+function setSecondPage(next) {
+  secondPage = next;
+  clearAnalysis();
+  byId('compare-preview').hidden = !next;
+  if (next) {
+    byId('compare-preview').textContent = `${next.page_label}\n${next.title}\n\n` +
+      next.blocks.map(b => `${b.id} · ${b.text}`).join('\n\n');
+    status(`Second page: ${next.blocks.length} visible text blocks. Review before sending.`, 'compare-status');
+  } else {
+    byId('compare-preview').textContent = '';
+    status('No second page selected.', 'compare-status');
   }
   refresh();
 }
@@ -84,7 +104,7 @@ function presentSources(refs) {
   for (const source of refs) {
     const card = document.createElement('div'); card.className = 'source-item';
     const label = document.createElement('div'); label.className = 'source-label';
-    label.textContent = `[source ${root.childElementCount + 1}] · ${source.block_id} · page block ${source.page_block_number}`;
+    label.textContent = `[source ${root.childElementCount + 1}] · ${source.page ? `Page ${source.page} · ` : ""}${source.block_id} · block ${source.page_block_number}`;
     const excerpt = document.createElement('p'); excerpt.textContent = source.text;
     card.append(label, excerpt); root.append(card);
   }
@@ -106,6 +126,28 @@ function findSourcesOffline() {
   status('Offline source lookup complete. Page text has not left this extension.');
 }
 
+function compareSourcesOffline() {
+  if (!page || !secondPage || controller) return;
+  clearAnalysis();
+  const pairs = comparePageEvidence(page, secondPage);
+  const refs = [];
+  for (const pair of pairs) {
+    refs.push({page:'A', block_id:pair.left.id, text:pair.left.text,
+      page_block_number:pair.left.position + 1});
+    refs.push({page:'B', block_id:pair.right.id, text:pair.right.text,
+      page_block_number:pair.right.position + 1});
+  }
+  byId('answer').textContent = pairs.length ?
+    `Found ${pairs.length} pair(s) sharing vocabulary across two explicitly captured pages. ` +
+    `Terms include: ${[...new Set(pairs.flatMap(p => p.common))].slice(0, 20).join(', ')}. ` +
+    'These matches do not establish agreement, contradiction or truth. No AI or network used.' :
+    'No substantial shared vocabulary found among the captured passages. This does not prove the pages are unrelated.';
+  byId('backend').textContent = 'offline · lexical crosscheck';
+  byId('answer-card').hidden = false;
+  presentSources(refs);
+  status('Offline crosscheck complete. Neither page was transmitted.');
+}
+
 async function disconnect() {
   if (controller) controller.abort();
   paired = false; sessionToken = '';
@@ -120,37 +162,57 @@ async function disconnect() {
   refresh();
 }
 
-async function analyze(event) {
-  event.preventDefault();
-  const question = byId('question').value.trim();
-  if (!page || !paired || !question || controller) return;
+async function runModelRequest(route, payload) {
+  if (!paired || controller) return;
   clearAnalysis();
-  controller = new AbortController();
+  const current = new AbortController();
+  controller = current;
   refresh();
-  status('Analyzing selected excerpts on your local model…');
-  const timeout = setTimeout(() => controller?.abort(), 180_000);
+  status(route === 'compare' ? 'Comparing two excerpts sets on your local model…' :
+    'Analyzing selected excerpts on your local model…');
+  const timeout = setTimeout(() => current.abort(), 180_000);
   try {
-    const response = await fetch(`${HOST}/v1/extension/analyze`, {
-      method:'POST', cache:'no-store', redirect:'error', signal:controller.signal,
+    const response = await fetch(`${HOST}/v1/extension/${route}`, {
+      method:'POST', cache:'no-store', redirect:'error', signal:current.signal,
       headers:{'Content-Type':'application/json', 'X-Svenbot-Token':sessionToken},
-      body:JSON.stringify({question, page:{title:page.title, blocks:page.blocks}})
+      body:JSON.stringify(payload)
     });
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.error || `Local bridge returned HTTP ${response.status}`);
     }
     const data = await response.json();
+    if (current.signal.aborted) throw new DOMException('Cancelled', 'AbortError');
     byId('answer').textContent = data.answer || '(No response)';
     byId('backend').textContent = data.backend || 'local';
     byId('answer-card').hidden = false;
     presentSources(data.references || []);
-    status('Complete · Excerpts are exact captured text, not verification of model claims.');
+    status('Complete · Source excerpts are exact captured text, not verification of model claims.');
   } catch (e) {
     status(e?.name === 'AbortError' ? 'Cancelled or timed out. No result saved.' :
       `Unable to analyze: ${e.message}`);
   } finally {
-    clearTimeout(timeout); controller = null; refresh();
+    clearTimeout(timeout);
+    if (controller === current) controller = null;
+    refresh();
   }
+}
+
+async function analyze(event) {
+  event.preventDefault();
+  const question = byId('question').value.trim();
+  if (!page || !question || !paired || controller) return;
+  return runModelRequest('analyze', {question, page:{title:page.title, blocks:page.blocks}});
+}
+
+async function compareWithModel() {
+  if (!page || !secondPage || !paired || controller) return;
+  const question = byId('question').value.trim() ||
+    'Compare the supported findings, disagreements, and missing evidence.';
+  return runModelRequest('compare', {question, pages:[
+    {title:page.title,blocks:page.blocks},
+    {title:secondPage.title,blocks:secondPage.blocks}
+  ]});
 }
 
 async function bootstrap() {
@@ -165,6 +227,14 @@ async function bootstrap() {
     try { await connect(); } catch (e) { paired=false;sessionToken='';refresh();status(e.message); }
   });
   byId('find').addEventListener('click', findSourcesOffline);
+  byId('capture-compare').addEventListener('click', async () => {
+    if (!page || controller) return;
+    status('Reading second selected page…', 'compare-status');
+    try { setSecondPage(await readCurrentTab()); }
+    catch(e) { setSecondPage(null); status(e.message, 'compare-status'); }
+  });
+  byId('compare-offline').addEventListener('click', compareSourcesOffline);
+  byId('compare-online').addEventListener('click', compareWithModel);
   byId('disconnect').addEventListener('click', () => {
     disconnect().catch(e => status(`Could not complete disconnect: ${e.message}`));
   });

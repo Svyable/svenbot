@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.3 — Two-page evidence crosscheck
+
+- Chrome Companion can now capture **two independently approved active pages**, preview both, and run an entirely offline lexical crosscheck with exact snippets labelled Page A and Page B. No background tab scan, browser history access, networking or model required for offline mode. Shared words do **not** prove agreement, contradiction or truth.
+- Added opt-in **Compare with local AI** backed by a separate, authenticated `/v1/extension/compare` route. Both document payloads pass independent size/schema controls; excerpts keep separate Page A/B provenance and SHA-256 digests, with no URL, persistence or remote model routing.
+- Added comparison validation, preflight, HTTP-to-fixture local inference and malicious input tests; JS exact-source tests, and a mocked Chromium two-capture/crosscheck/model-response smoke. Real extension installation and live-weight inference remain unverified due managed Chrome policy.
+- No new Chrome permissions or runtime third-party packages. Chrome manifest 0.1.2, Python 0.7.3.
+
 ## 0.7.2 — Trust-but-verify Chrome alpha
 
 - Added **Find exact passages · Offline** inside the Chrome companion. It searches only user-captured page excerpts without invoking a model, using the network, or pretending lexical matches are AI answers. Added explicit **Disconnect & forget pairing** to clear the session token and request localhost-permission removal.
