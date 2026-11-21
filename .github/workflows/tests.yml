@@ -72,6 +72,7 @@ jobs:
           with ZipFile('dist/svenbot-companion-alpha.zip') as z:
               j = json.loads(z.read('manifest.json'))
               assert j['manifest_version'] == 3
+              assert j['version'] == '0.1.2'
               assert set(j['permissions']) == {'activeTab', 'scripting', 'sidePanel', 'storage'}
               assert j['optional_host_permissions'] == ['http://127.0.0.1/*']
               assert not j.get('host_permissions')

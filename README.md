@@ -217,6 +217,10 @@ source in this explicit lane. Receipts contain plaintext source text and should 
 published or committed indiscriminately. Save is opt-in and refuses to overwrite an existing file.
 See [the research hypothesis, prior art, threat model, and falsification plan](docs/research/attested-evidence.md). The field already includes established citation and proof-carrying answer research; no claim of scientific priority is made.
 
+## Chrome Companion two-page crosscheck (v0.7.3)
+
+The optional, separately installed Chrome MV3 companion now supports **two user-selected pages** in its side panel. It requires a deliberate `activeTab` capture for each page; `Crosscheck passages · Offline` returns exact pairwise snippets sharing vocabulary with **no model or network traffic**. `Compare with local AI` is optional and uses the existing token-paired, loopback-only `svenbot bridge` through a distinct `/v1/extension/compare` endpoint. Source receipts keep Page A and Page B separate. This is not semantic contradiction detection, fact checking or autonomous browsing; there is no all-sites permission, data persistence or implicit upload. See [`extension/README.md`](extension/README.md) for exact steps, constraints, and real Chrome acceptance tests.
+
 ## Local API
 
 ```bash

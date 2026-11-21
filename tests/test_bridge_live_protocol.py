@@ -137,6 +137,25 @@ class LiveProtocolTests(unittest.TestCase):
         self.assertIn("Compatible fixture", data["answer"])
         self.assertEqual(self.model.requests[-1][0], "/v1/chat/completions")
 
+    def test_real_ollama_comparison_http_route_with_two_source_namespaces(self):
+        port = self.bridge()
+        request = {"question":"Compare experiment results.", "pages": [
+            {"title":"Page A", "blocks":[{"id":"B1","text":"The experiment found one improvement."}]},
+            {"title":"Page B", "blocks":[{"id":"B1","text":"Experiment results found no improvement."}]},
+        ]}
+        code, data, cors = self.request(port, "POST", "/v1/extension/compare", request)
+        self.assertEqual(code, 200)
+        self.assertEqual(data["mode"], "comparison")
+        self.assertEqual([ref["page"] for ref in data["references"]], ["A", "B"])
+        self.assertEqual([ref["block_id"] for ref in data["references"]], ["B1", "B1"])
+        self.assertEqual(cors, f"chrome-extension://{EXTENSION_ID}")
+        route, body = self.model.requests[-1]
+        self.assertEqual(route, "/api/chat")
+        self.assertIn("selected-browser-page-A", body["messages"][0]["content"])
+        self.assertIn("selected-browser-page-B", body["messages"][0]["content"])
+        self.assertIn("Page A and Page B", body["messages"][-1]["content"])
+        self.assertNotIn("private url", json.dumps(body))
+
     def test_pairing_is_not_confused_with_model_readiness(self):
         port = self.bridge()
         self.model.shutdown(); self.model.server_close(); self.model_thread.join(timeout=3)

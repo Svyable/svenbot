@@ -20,6 +20,19 @@ A working, optional Manifest V3 side panel for Chrome/Chromium browsers. Click *
 
 To try an OpenAI-compatible **local** server instead, use `--backend openai --model local --openai-url http://127.0.0.1:8080`. Neither mode exposes Svenbot's general web-chat endpoint to extension pages.
 
+
+## Compare two selected webpages (v0.1.2)
+
+1. On the first article, click the extension toolbar icon, open the side panel and choose **Read selected tab**. Review the first preview.
+2. Navigate to or select the second ordinary webpage, click the extension toolbar icon **on that page** to grant fresh `activeTab` access, then choose **Read second selected tab**. Review the second preview. Each click reads only the currently active tab; no other tab is enumerated or crawled.
+3. Choose **Crosscheck passages · Offline** to see shared-vocabulary pairs and verbatim snippets labelled **Page A** and **Page B**. This runs without Python, Ollama, WebGPU or network traffic. It does **not** establish that claims agree, contradict or are true. If no pairs appear, that also says nothing about semantic relatedness.
+4. Optionally start your already-installed local Ollama/llama.cpp model and pair the bridge, then choose **Compare with local AI**. The extension sends both user-reviewed text captures and the optional question to a separate, authenticated loopback `/v1/extension/compare` endpoint; the URL/path, cookies and query parameters are *not* forwarded. Results show exact separately labelled source snippets but do not independently verify model claims.
+5. **Clear captured pages + answer** discards both in-memory snapshots; closing the panel also discards them. There is no saved history or cross-tab monitoring. Changing Page A clears the previous Page B to prevent accidentally comparing different sessions.
+
+The paired comparison endpoint limits requests to 128,000 bytes and independently enforces each captured page's text/structure bounds. Pages may still contain sensitive visible text; inspect both previews before submitting either to a local model. Local model servers may log requests independently.
+
+Developer smoke: `python extension/mock_compare_e2e.py` tests browser controls using mocked extension APIs and a fake model reply. This is **not** a real unpacked extension or a real model benchmark.
+
 ## Privacy and capabilities
 
 - **Only explicit active-tab reads:** `activeTab` + `scripting`, not `<all_urls>`, `tabs` history, clipboard read, downloads or cookie permissions. Chrome may refuse injection on internal/restricted pages; open an ordinary http(s) page. Click the extension's toolbar icon on the new tab to grant fresh access.
