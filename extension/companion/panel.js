@@ -7,6 +7,8 @@ let secondPage = null;
 let sessionToken = '';
 let paired = false;
 let controller = null;
+let browserModelReady = false;
+let browserModelStatus = "unchecked";
 
 const byId = name => document.getElementById(name);
 function status(text, id = 'analysis-status') { byId(id).textContent = text; }
@@ -16,6 +18,10 @@ function refresh() {
   byId('capture-compare').disabled = !page || !!controller;
   byId('compare-offline').disabled = !page || !secondPage || !!controller;
   byId('compare-online').disabled = !page || !secondPage || !paired || !!controller;
+  byId('browser-ai-check').disabled = !!controller;
+  byId('browser-ai-enable').disabled = !!controller || browserModelStatus === 'unsupported' || browserModelStatus === 'unavailable' || browserModelStatus === 'unchecked';
+  byId('browser-ai-ask').disabled = !browserModelReady || !page || !!controller;
+  byId('browser-ai-compare').disabled = !browserModelReady || !page || !secondPage || !!controller;
 }
 function clearAnalysis() {
   byId('answer-card').hidden = true;
@@ -215,6 +221,84 @@ async function compareWithModel() {
   ]});
 }
 
+async function checkBrowserAI() {
+  const found = await BrowserAI.availability();
+  browserModelStatus = found;
+  browserModelReady = found === 'available';
+  const descriptions = {
+    available: 'Chrome on-device AI is available. It can answer without a local Svenbot server.',
+    downloadable: 'Chrome reports an on-device model can be downloaded. Enable only if you agree to a browser-managed download.',
+    downloading: 'Chrome is downloading its on-device model. Enable to monitor initialization.',
+    unavailable: 'Chrome on-device AI is unavailable on this browser/device. Offline passages and paired Svenbot still work.',
+    unsupported: 'Chrome Prompt API is not supported here. Offline passages and paired Svenbot still work.'
+  };
+  status(descriptions[found] || descriptions.unavailable, 'browser-ai-status');
+  refresh();
+}
+
+// Explicit click is the consent boundary. Call BrowserAI.enable directly
+// without awaiting an availability probe first: preserves user activation.
+async function enableBrowserAI() {
+  if (controller) return;
+  const current = new AbortController();
+  controller = current;
+  refresh();
+  status('Initializing Chrome device model. This may download model weights through Chrome…', 'browser-ai-status');
+  try {
+    await BrowserAI.enable({signal:current.signal, onProgress:percent => {
+      if (!current.signal.aborted) status(`Chrome model download: ${percent}%`, 'browser-ai-status');
+    }});
+    if (current.signal.aborted) throw Object.assign(Error('Cancelled'), {name:'AbortError'});
+    browserModelReady = true;
+    browserModelStatus = 'available';
+    status('Chrome on-device AI is ready. No source page text has been sent.', 'browser-ai-status');
+  } catch (e) {
+    browserModelReady = false;
+    browserModelStatus = 'unavailable';
+    status(e?.name === 'AbortError' ? 'Chrome model initialization cancelled.' :
+      `Chrome AI could not start: ${e.message}`, 'browser-ai-status');
+  } finally {
+    if (controller === current) controller = null;
+    refresh();
+  }
+}
+
+async function runBrowserAI(compare) {
+  if (!browserModelReady || !page || (compare && !secondPage) || controller) return;
+  const question = byId('question').value.trim() ||
+    (compare ? 'Compare supported findings, conflicts, and gaps in these two pages.' :
+      'Summarize the most important claims in this page and cite exact source blocks.');
+  const first=page, second=secondPage;
+  const current = new AbortController();
+  controller=current;
+  clearAnalysis();
+  refresh();
+  status('Generating on this device with Chrome AI. No Svenbot bridge or remote API…');
+  try {
+    const response = await BrowserAI.generate({pages:compare?[first,second]:[first],
+      question, signal:current.signal, onText:answer => {
+        if (current.signal.aborted || page!==first || secondPage!==second) return;
+        byId('answer').textContent = answer;
+        byId('answer-card').hidden = false;
+        byId('backend').textContent = 'Chrome AI · generating';
+      }});
+    if (current.signal.aborted || page!==first || secondPage!==second)
+      throw Object.assign(Error('Cancelled'),{name:'AbortError'});
+    byId('answer').textContent = response.answer;
+    byId('backend').textContent = response.backend;
+    byId('answer-card').hidden = false;
+    presentSources(response.references);
+    status('Complete · Generated locally in Chrome. Cited excerpts are not fact verification.');
+  } catch(e) {
+    clearAnalysis(); // Never present interrupted or partial model output as complete.
+    status(e?.name === 'AbortError' ? 'Chrome AI cancelled; incomplete response discarded.' :
+      `Chrome AI unavailable: ${e.message}`);
+  } finally {
+    if(controller===current) controller=null;
+    refresh();
+  }
+}
+
 async function bootstrap() {
   byId('extid').textContent = chrome.runtime.id;
   byId('capture').addEventListener('click', async () => {
@@ -227,6 +311,10 @@ async function bootstrap() {
     try { await connect(); } catch (e) { paired=false;sessionToken='';refresh();status(e.message); }
   });
   byId('find').addEventListener('click', findSourcesOffline);
+  byId('browser-ai-check').addEventListener('click', () => {checkBrowserAI().catch(e => status(`Chrome AI check failed: ${e.message}`, 'browser-ai-status'));});
+  byId('browser-ai-enable').addEventListener('click', () => {enableBrowserAI().catch(e => status(`Chrome AI initialization failed: ${e.message}`, 'browser-ai-status'));});
+  byId('browser-ai-ask').addEventListener('click', () => {runBrowserAI(false);});
+  byId('browser-ai-compare').addEventListener('click', () => {runBrowserAI(true);});
   byId('capture-compare').addEventListener('click', async () => {
     if (!page || controller) return;
     status('Reading second selected page…', 'compare-status');

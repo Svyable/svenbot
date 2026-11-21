@@ -6,11 +6,19 @@ Svenbot is an independent, local-first orchestration project inspired by [Huggin
 
 It is an **experimental 0.7 beta, not a release-proven Chrome extension or the best local AI assistant**. We intend to earn that through reproducible benchmarks, latency and memory efficiency, extensibility, and safety—not marketing claims.
 
+## Chrome Companion (experimental browser-native AI)
+
+The Chrome side panel now has **three distinct execution paths**. First, *Find exact passages* and the two-page lexical crosscheck operate entirely inside Chrome without models or network. Second, **Chrome on-device AI** optionally uses Chrome's own built-in Prompt API (browser-managed **Gemini Nano, not open weights**) for generative analysis of one or two explicitly reviewed page captures. Third, an optional, token-paired `svenbot bridge` connects the same interface to independently installed open-weight Ollama/llama.cpp models on your computer.
+
+Chrome AI is not automatically enabled: choose **Check Chrome AI availability**, and then **Enable Chrome AI** to explicitly allow Chrome to download its on-device model if needed. Hardware/storage/Chrome-version eligibility varies; if unsupported, offline source lookup and the bridge remain available. Prompt API source citations identify input excerpts, not fact checks, and page content may attempt prompt injection.
+
+**Open-weight WebGPU inference using Transformers.js/WebLLM is still not implemented.** The Prompt API is a real browser-native option on supported Chrome versions, but it does not make Gemini Nano an open-weight model. Automated adapter tests and mocked Chromium interactions **do not establish live hardware model inference**; unmanaged Chrome device validation remains an open release gate.
+
 ## Chrome Companion (new alpha)
 
 Svenbot includes an optional **read-only Chrome MV3 side panel**. Choose a tab, inspect extracted visible text, **find exact passages offline without a model**, and optionally analyze selected excerpts with a paired locally served model (Ollama or llama.cpp). Chrome asks for localhost access only when you choose to pair. The pairing view checks only local endpoint inventory and now distinguishes the bridge being paired from a model being listed/reachable. No all-sites permissions, automatic scans, hidden cloud fallbacks or browser actions.
 
-**[Installation, pairing, security and limitations](extension/README.md).** This release does **not** yet run open-weight inference inside WebGPU; that is a separately tracked experiment. Chrome extension end-to-end testing on an actual user machine is still needed: the managed Chromium here disables all extensions, so a real unpacked installation cannot be certified from our passing protocol and mock UI tests.
+**[Installation, pairing, security and limitations](extension/README.md).** This release does **not** yet run **open-weight** inference inside WebGPU; that is a separately tracked experiment. Chrome extension end-to-end testing on an actual user machine is still needed: the managed Chromium here disables all extensions, so a real unpacked installation cannot be certified from our passing protocol and mock UI tests.
 
 ```sh
 python extension/build.py

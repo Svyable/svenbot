@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="panel.css">
   <script src="reader.js" defer></script>
   <script src="page-tools.js" defer></script>
+  <script src="browser-ai.js" defer></script>
   <script src="panel.js" defer></script>
 </head>
 <body>
@@ -34,12 +35,26 @@
       <div id="compare-preview" class="preview" hidden></div>
       <div class="compare-actions">
         <button id="compare-offline" type="button" class="secondary" disabled>Crosscheck passages · Offline</button>
-        <button id="compare-online" type="button" class="primary" disabled>Compare with local AI</button>
+        <button id="compare-online" type="button" class="primary" disabled>Compare with paired Svenbot</button>
       </div>
       <p class="tiny">Offline matches show shared vocabulary, NOT verified agreement or contradiction. AI comparison is optional and may be wrong.</p>
     </section>
+    <section class="card chrome-brain" aria-label="Chrome on-device artificial intelligence">
+      <div class="section-title"><span>03</span> Chrome on-device AI <span class="alpha">DEVICE</span></div>
+      <p><strong>No Svenbot server needed.</strong> Chrome can run its own built-in Gemini Nano model on eligible desktop hardware. This is browser-managed, not open-weight. Chrome may download model files after you explicitly choose Enable. Your page excerpts stay on this device during inference.</p>
+      <div id="browser-ai-status" class="status" role="status" aria-live="polite">Chrome model not checked.</div>
+      <div class="browser-actions">
+        <button id="browser-ai-check" class="secondary" type="button">Check Chrome AI availability</button>
+        <button id="browser-ai-enable" class="secondary" type="button" disabled>Enable Chrome AI · may download model</button>
+      </div>
+      <div class="browser-actions">
+        <button id="browser-ai-ask" class="primary" type="button" disabled>Analyze Page A in Chrome</button>
+        <button id="browser-ai-compare" class="secondary" type="button" disabled>Compare A + B in Chrome</button>
+      </div>
+      <p class="tiny">Downloads use Chrome's built-in model manager. No model weights or remote scripts are bundled with Svenbot. Clear cancels an in-flight response; model availability depends on Chrome and device resources. Cite labels identify supplied excerpts, not independently checked facts.</p>
+    </section>
     <section class="card analysis" aria-label="Local model analysis">
-      <div class="section-title"><span>03</span> Ask your local model</div>
+      <div class="section-title"><span>04</span> Ask your local model</div>
       <p>The selected excerpts stay on your computer. Pair the extension with a separate Svenbot process to enable model answers.</p>
       <details id="pairing">
         <summary>Pair with Svenbot <span id="pair-label">Not connected</span></summary>
