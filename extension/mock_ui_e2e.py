@@ -4,7 +4,12 @@ from playwright.sync_api import sync_playwright
 root=Path(__file__).parent/'companion'
 html=(root/'panel.html').read_text()
 # Block remote assets: replace references with injected local script/style assets.
-html=html.replace('<link rel="stylesheet" href="panel.css">','').replace('<script src="reader.js" defer></script>','').replace('<script src="page-tools.js" defer></script>','').replace('<script src="panel.js" defer></script>','')
+for tag in ('<link rel="stylesheet" href="panel.css">',
+            '<script src="reader.js" defer></script>',
+            '<script src="page-tools.js" defer></script>',
+            '<script src="browser-ai.js" defer></script>',
+            '<script src="panel.js" defer></script>'):
+  html=html.replace(tag,'')
 with sync_playwright() as p:
   ctx=p.chromium.launch(headless=True, executable_path='/usr/bin/chromium', args=['--no-sandbox'])
   page=ctx.new_page(viewport={'width':390,'height':800})
@@ -25,7 +30,7 @@ with sync_playwright() as p:
       storage: {session:{get:async()=>({}),set:async()=>{},remove:async()=>{window.__removed=true;}}}
     };''')
   page.add_style_tag(content=(root/'panel.css').read_text())
-  for script in ['reader.js','page-tools.js','panel.js']:
+  for script in ['reader.js','page-tools.js','browser-ai.js','panel.js']:
     page.add_script_tag(content=(root/script).read_text())
   page.locator('#capture').click(timeout=5000)
   assert page.locator('#page-preview').is_visible(), (page.locator('#page-status').inner_text(), errors)

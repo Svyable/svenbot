@@ -6,3 +6,7 @@ details{border:1px solid #33483e;border-radius:12px;padding:12px;margin:14px 0;b
 
 .compare-actions{display:grid;gap:8px;margin-top:12px}.compare-actions .secondary:disabled{opacity:.43;cursor:not-allowed}
 @media(min-width:550px){.compare-actions{grid-template-columns:1fr 1fr}}
+
+.browser-actions{display:grid;gap:8px;margin:10px 0}.browser-actions button:disabled{opacity:.43;cursor:not-allowed}
+.chrome-brain .alpha{display:inline-flex;margin:0;color:#d4e6bb;border-color:#607c49}
+@media(min-width:550px){.browser-actions{grid-template-columns:1fr 1fr}}

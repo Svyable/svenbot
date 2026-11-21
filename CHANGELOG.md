@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.4 — Chrome built-in on-device AI (experimental)
+
+- Added a **browser-native generative inference path** in Chrome Companion: the optional Chrome Prompt API (`LanguageModel`, browser-managed Gemini Nano) can answer questions about one or two explicitly captured pages **without Python, Ollama or localhost**. This model is **not open-weight**; the separately tracked WebGPU/Transformers.js open-weight integration remains open.
+- Added `Check Chrome AI availability` (read-only), then a deliberate `Enable Chrome AI` click that may download browser-managed model weights, with progress display. No auto-download, remote executable script, new host permission or cloud fallback. Only supported Chrome desktop/hardware is eligible; the extension works in offline lexical / paired-local modes elsewhere.
+- Each request uses an isolated model session, bounded prompt and output, abortable streaming, exact pre-captured source excerpts with separate Page A/B references, and no persistence. Malformed/incomplete responses are discarded and never marked complete. Browser-generated claims are **not independently verified**.
+- Added seven Node adapter tests and mocked Chromium enable → single-page → two-page → clear UI test. Python version 0.7.4, Chrome manifest 0.1.3. **Real eligible-Chrome device model run remains unverified in this managed browser environment.**
+
+
 ## 0.7.3 — Two-page evidence crosscheck
 
 - Chrome Companion can now capture **two independently approved active pages**, preview both, and run an entirely offline lexical crosscheck with exact snippets labelled Page A and Page B. No background tab scan, browser history access, networking or model required for offline mode. Shared words do **not** prove agreement, contradiction or truth.

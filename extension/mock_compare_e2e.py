@@ -7,6 +7,7 @@ html = (root/'panel.html').read_text()
 for item in ('<link rel="stylesheet" href="panel.css">',
              '<script src="reader.js" defer></script>',
              '<script src="page-tools.js" defer></script>',
+             '<script src="browser-ai.js" defer></script>',
              '<script src="panel.js" defer></script>'):
     html = html.replace(item,'')
 with sync_playwright() as playwright:
@@ -34,7 +35,7 @@ with sync_playwright() as playwright:
       storage:{session:{get:async()=>({}),set:async()=>{},remove:async()=>{}}}
     };''')
     page.add_style_tag(content=(root/'panel.css').read_text())
-    for file in ('reader.js','page-tools.js','panel.js'):
+    for file in ('reader.js','page-tools.js','browser-ai.js','panel.js'):
         page.add_script_tag(content=(root/file).read_text())
     page.locator('#capture').click()
     assert page.locator('#page-preview').is_visible()
