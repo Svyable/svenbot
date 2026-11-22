@@ -1,3 +1,7 @@
+### Chrome Companion 0.1.4: Page Atlas (Svenbot 0.7.5)
+
+The optional Chrome side panel now distributes a bounded text capture over long webpages (including late caveats), reports sampling/truncation, fingerprints the normalized in-memory snapshot with SHA-256 and refuses to present mismatched source references as exact quotes. No new browser permissions, cloud requests, stored page text or automatic model downloads are introduced. **A fingerprint does not authenticate the website or prove the model's claims**; source previews still require user review. See [`extension/README.md`](extension/README.md) and [`extension/reader_dom_e2e.py`](extension/reader_dom_e2e.py) for QA. Real installed Chrome/model hardware validation and third-party readability bake-offs are still open.
+
 # Svenbot
 
 **Local AI should mean local.** Your inference, your documents, your hardware, and a clear answer about which engine answered.

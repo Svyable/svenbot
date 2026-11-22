@@ -25,6 +25,11 @@
       <p>Nothing is read until you press the button. Chrome grants access to the selected tab only.</p>
       <button id="capture" class="primary">Read selected tab</button>
       <div id="page-status" class="status" role="status" aria-live="polite">No page selected.</div>
+      <div id="capture-receipt" class="capture-receipt" hidden>
+        <span>In-memory capture receipt (SHA-256, not website authentication)</span>
+        <code id="capture-hash"></code>
+        <button id="copy-capture-hash" type="button" class="subtle">Copy receipt</button>
+      </div>
       <div id="page-preview" class="preview" hidden></div>
     </section>
     <section class="card comparison" aria-label="Compare two user-approved pages">
@@ -87,6 +92,7 @@
       </article>
       <div id="sources" class="sources" hidden>
         <div class="section-title">Source excerpts <span class="note">Exact page text, not verified support</span></div>
+        <div id="source-warning" class="status" role="status"></div>
         <div id="source-items"></div>
       </div>
     </section>

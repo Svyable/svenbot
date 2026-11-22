@@ -10,3 +10,8 @@ details{border:1px solid #33483e;border-radius:12px;padding:12px;margin:14px 0;b
 .browser-actions{display:grid;gap:8px;margin:10px 0}.browser-actions button:disabled{opacity:.43;cursor:not-allowed}
 .chrome-brain .alpha{display:inline-flex;margin:0;color:#d4e6bb;border-color:#607c49}
 @media(min-width:550px){.browser-actions{grid-template-columns:1fr 1fr}}
+
+.capture-receipt{margin:12px 0 0;padding:10px 11px;background:#101e1d;border:1px solid #315346;border-radius:9px;font-size:10px;color:#a2c4b1;display:grid;gap:5px}
+.capture-receipt[hidden]{display:none}
+.capture-receipt code{font:10px/1.45 ui-monospace,monospace;overflow-wrap:anywhere;color:#d1ebd9}
+.capture-receipt button{justify-self:start}

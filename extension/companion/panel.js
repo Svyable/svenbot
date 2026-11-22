@@ -28,6 +28,7 @@ function clearAnalysis() {
   byId('answer').textContent = '';
   byId('sources').hidden = true;
   byId('source-items').replaceChildren();
+  byId('source-warning').textContent = '';
   status('');
 }
 function setPage(next) {
@@ -38,9 +39,17 @@ function setPage(next) {
   if (next) {
     const lines = next.blocks.map(b => `${b.id} · ${b.text}`);
     byId('page-preview').textContent = `${next.page_label}\n${next.title}\n\n${lines.join('\n\n')}`;
-    status(`${next.blocks.length} visible text blocks · ${next.total_characters} characters. Review the preview before sending.`, 'page-status');
+    const limits = next.capture?.sampled ?
+      ` · coverage sampled from ${next.capture.eligible} eligible blocks` : '';
+    const clipped = next.capture?.clipped ? ` · ${next.capture.clipped} shortened blocks` : '';
+    const receipt = next.fingerprint ? ` · snapshot ${next.fingerprint.slice(0, 12)}` : '';
+    status(`${next.blocks.length} visible text blocks · ${next.total_characters} characters${limits}${clipped}${receipt}. Review the preview before sending.`, 'page-status');
+    byId('capture-receipt').hidden = !next.fingerprint;
+    byId('capture-hash').textContent = next.fingerprint || '';
   } else {
     byId('page-preview').textContent = '';
+    byId('capture-receipt').hidden = true;
+    byId('capture-hash').textContent = '';
     status('No page selected.', 'page-status');
   }
   refresh();
@@ -53,7 +62,10 @@ function setSecondPage(next) {
   if (next) {
     byId('compare-preview').textContent = `${next.page_label}\n${next.title}\n\n` +
       next.blocks.map(b => `${b.id} · ${b.text}`).join('\n\n');
-    status(`Second page: ${next.blocks.length} visible text blocks. Review before sending.`, 'compare-status');
+    const coverage = next.capture?.sampled ?
+      ` · sampled from ${next.capture.eligible} eligible blocks` : '';
+    const receipt = next.fingerprint ? ` · snapshot ${next.fingerprint.slice(0, 12)}` : '';
+    status(`Second page: ${next.blocks.length} visible text blocks${coverage}${receipt}. Review before sending.`, 'compare-status');
   } else {
     byId('compare-preview').textContent = '';
     status('No second page selected.', 'compare-status');
@@ -75,6 +87,9 @@ async function readCurrentTab() {
   // A tab may have changed during the read; never silently use stale content.
   const latest = await chrome.tabs.get(tab.id);
   if (latest.url !== tab.url) throw new Error('Tab navigated during capture; click Read again.');
+  // A digest of the normalized in-memory snapshot, not independent web proof.
+  try { current.fingerprint = await fingerprintPage(current); }
+  catch (_) { current.fingerprint = null; } // Browser's crypto API unavailable.
   return current;
 }
 
@@ -107,14 +122,17 @@ async function connect() {
 function presentSources(refs) {
   const root = byId('source-items');
   root.replaceChildren();
-  for (const source of refs) {
+  const {valid, rejected} = filterCaptureReferences(refs, page, secondPage);
+  for (const source of valid) {
     const card = document.createElement('div'); card.className = 'source-item';
     const label = document.createElement('div'); label.className = 'source-label';
-    label.textContent = `[source ${root.childElementCount + 1}] · ${source.page ? `Page ${source.page} · ` : ""}${source.block_id} · block ${source.page_block_number}`;
+    label.textContent = `[source ${root.childElementCount + 1}] · ${source.page ? `Page ${source.page} · ` : ''}${source.block_id} · block ${source.page_block_number} · exact capture match`;
     const excerpt = document.createElement('p'); excerpt.textContent = source.text;
     card.append(label, excerpt); root.append(card);
   }
-  byId('sources').hidden = refs.length === 0;
+  byId('source-warning').textContent = rejected.length ?
+    `${rejected.length} source reference(s) did not match the active capture and were not displayed.` : '';
+  byId('sources').hidden = !valid.length && !rejected.length;
 }
 
 function findSourcesOffline() {
@@ -172,6 +190,7 @@ async function runModelRequest(route, payload) {
   if (!paired || controller) return;
   clearAnalysis();
   const current = new AbortController();
+  const firstSnapshot = page, secondSnapshot = secondPage;
   controller = current;
   refresh();
   status(route === 'compare' ? 'Comparing two excerpts sets on your local model…' :
@@ -188,7 +207,8 @@ async function runModelRequest(route, payload) {
       throw new Error(error.error || `Local bridge returned HTTP ${response.status}`);
     }
     const data = await response.json();
-    if (current.signal.aborted) throw new DOMException('Cancelled', 'AbortError');
+    if (current.signal.aborted || firstSnapshot !== page || secondSnapshot !== secondPage)
+      throw new DOMException('Capture changed', 'AbortError');
     byId('answer').textContent = data.answer || '(No response)';
     byId('backend').textContent = data.backend || 'local';
     byId('answer-card').hidden = false;
@@ -325,6 +345,10 @@ async function bootstrap() {
   byId('compare-online').addEventListener('click', compareWithModel);
   byId('disconnect').addEventListener('click', () => {
     disconnect().catch(e => status(`Could not complete disconnect: ${e.message}`));
+  });
+  byId('copy-capture-hash').addEventListener('click', () => {
+    if (page?.fingerprint) navigator.clipboard.writeText(
+      `Svenbot normalized capture SHA-256: ${page.fingerprint}\n${page.page_label}`);
   });
   byId('copy-id').addEventListener('click', () => navigator.clipboard.writeText(chrome.runtime.id));
   byId('copy-answer').addEventListener('click', () => navigator.clipboard.writeText(byId('answer').textContent));
