@@ -1,3 +1,13 @@
+## 0.7.5 — Page Atlas: auditable captures (2026-11-22)
+
+- **Cross-document coverage:** the Chrome Companion now samples a bounded set of excerpts across long pages rather than permanently favoring the first 60 blocks. It reserves introductory, concluding and heading context, bisects the biggest coverage gaps, and shares the character budget fairly among selected passages. The preview reports whether the result was sampled or clipped. This is **sampled evidence**, not a full-document index.
+- **Privacy-oriented reader:** the in-page DOM text walker now excludes nested aria-hidden, inert, form, contenteditable, closed-details and CSS-hidden text nodes, rather than trusting ancestor visibility and `innerText` alone. Still review visible captures before sharing them with any model; this is not formal secret detection.
+- **Source provenance:** a SHA-256 receipt fingerprints the locally normalized page title, displayed path and captured block strings; the side panel provides a copy action. The hash attests only to the local snapshot, **not the authenticity of the website**. It is never automatically uploaded.
+- **Citation guard:** source excerpts returned by browser AI or the paired backend are displayed as exact capture matches only when block ID, position and text all match the active Page A/B snapshot. Mismatches are disclosed rather than presented as verified quotes. Exact matches do not prove answer claims are true.
+- **Race guard:** in-flight paired inference cannot display an answer if the user changed either captured page before completion.
+- Maintains `activeTab`-only capture and optional localhost permission; no new browser permissions, third-party code, model downloads or telemetry. Version 0.7.5 / Companion 0.1.4.
+- Added six deterministic JS regression tests and a real-Chromium synthetic DOM inspection script (run locally when Playwright/Chromium are available). Hardware/real-extension inference and Defuddle/Readability comparisons remain open.
+
 # Changelog
 
 ## 0.7.4 — Chrome built-in on-device AI (experimental)

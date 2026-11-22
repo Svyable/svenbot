@@ -56,4 +56,39 @@ function comparePageEvidence(first, second, limit = 4) {
   }
   return results;
 }
-if (typeof module !== 'undefined' && module.exports) module.exports = {matchPageEvidence, comparePageEvidence};
+// The receipt attests to this in-memory normalized capture, not to the
+// website or its authorship. It never leaves the extension automatically.
+async function fingerprintPage(page) {
+  if (!page || typeof page.title !== 'string' || typeof page.page_label !== 'string' ||
+      !Array.isArray(page.blocks) || page.blocks.length > 60 ||
+      page.blocks.some(b => typeof b?.id !== 'string' || typeof b?.text !== 'string'))
+    throw Error('Cannot fingerprint an invalid capture.');
+  if (!globalThis.crypto?.subtle) throw Error('SHA-256 is unavailable.');
+  const canonical = JSON.stringify({schema:1, title:page.title,
+    page_label:page.page_label, blocks:page.blocks.map(b=>[b.id,b.text])});
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
+  return [...new Uint8Array(hash)].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+
+// Provenance guard: the bridge and model output may not claim that an unknown
+// source label or altered excerpt is an exact quote of the active snapshot.
+// Exact match is NOT semantic support, website authenticity or truth.
+function filterCaptureReferences(refs, first, second = null) {
+  const valid = [], rejected = [];
+  if (!Array.isArray(refs)) return {valid, rejected:[{reason:'Invalid source list'}]};
+  for (const ref of refs.slice(0, 20)) {
+    const target = ref?.page === 'B' ? second :
+      (ref?.page === undefined || ref?.page === 'A' ? first : null);
+    const position = target?.blocks?.findIndex(block => block.id === ref?.block_id);
+    if (position === undefined || position < 0 ||
+        !Number.isInteger(ref?.page_block_number) || ref.page_block_number !== position + 1 ||
+        target.blocks[position].text !== ref.text) {
+      rejected.push({block_id:ref?.block_id || '(unknown)', reason:'Not an exact current capture match'});
+    } else valid.push(ref);
+  }
+  if (refs.length > 20) rejected.push({reason:'Source list exceeds limit'});
+  return {valid, rejected};
+}
+if (typeof module !== 'undefined' && module.exports) module.exports = {
+  matchPageEvidence, comparePageEvidence, fingerprintPage, filterCaptureReferences
+};
