@@ -19,6 +19,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install -e .
       - run: python -m unittest discover -s tests -v
+      - run: python -m svenbot model-lab --dry-run
 
   package:
     runs-on: ubuntu-latest
@@ -39,7 +40,8 @@ jobs:
           wheels = list(Path('dist').glob('svenbot-*.whl'))
           assert len(wheels) == 1, wheels
           with ZipFile(wheels[0]) as wheel:
-              for path in ('svenbot/discovery.py', 'svenbot/documents.py', 'svenbot/document_sessions.py', 'svenbot/extension_bridge.py', 'svenbot/ui/index.html',
+              for path in ('svenbot/discovery.py', 'svenbot/documents.py', 'svenbot/document_sessions.py', 'svenbot/extension_bridge.py', 'svenbot/model_lab.py',
+                           'svenbot/fixtures/browser-harness-20.jsonl', 'svenbot/ui/index.html',
                            'svenbot/ui/app.js', 'svenbot/ui/style.css'):
                   assert path in wheel.namelist(), path
           PY

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "svenbot"
-version = "0.7.5"
+version = "0.7.6"
 description = "Local-first AI with transparent backends, optional PyBot rules, and private retrieval"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -29,4 +29,4 @@ where = ["src"]
 testpaths = ["tests"]
 
 [tool.setuptools.package-data]
-svenbot = ["ui/*.html", "ui/*.css", "ui/*.js"]
+svenbot = ["ui/*.html", "ui/*.css", "ui/*.js", "fixtures/*.jsonl"]

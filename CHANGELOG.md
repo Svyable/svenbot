@@ -1,3 +1,10 @@
+## 0.7.6 — Local Model Lab for Chrome task contracts (2026-11-22)
+
+- Introduced `svenbot model-lab`: evaluate multiple **already-installed, explicitly selected** local Ollama/llama.cpp-compatible models against a 20-case synthetic browser task fixture. The bundled fixture covers source extraction, two-page comparison, read-only tool proposals, code reasoning and prompt-injection attempts.
+- Strictly validates task schemas before inference, exact quoted source substrings, tool JSON against a read-only allowlist, required evidence, and narrow answer/forbidden term checks. The resulting scores are **contract proxies**, not human task success or proven semantic truth. There are **no browser actions** or automatic model downloads.
+- New private JSON report with fixture SHA-256, model/category pass rate, wall-clock latency distribution and measured-but-**not-activated** routing candidates. Does not store raw prompts or generated replies. Remote endpoints refused and reports saved atomically with owner-only permissions on POSIX.
+- Optional `--dry-run` validates the packaged fixture entirely offline. Additional local protocol and malicious JSON tests; GitHub CI checks the packaged fixture and module. Chrome Companion's permission budget and 0.1.4 release are unchanged; Inkling is an optional **host model**, not yet WebGPU browser weights. See [`docs/benchmarks/model-lab.md`](docs/benchmarks/model-lab.md).
+
 ## 0.7.5 — Page Atlas: auditable captures (2026-11-22)
 
 - **Cross-document coverage:** the Chrome Companion now samples a bounded set of excerpts across long pages rather than permanently favoring the first 60 blocks. It reserves introductory, concluding and heading context, bisects the biggest coverage gaps, and shares the character budget fairly among selected passages. The preview reports whether the result was sampled or clipped. This is **sampled evidence**, not a full-document index.

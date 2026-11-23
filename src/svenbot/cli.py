@@ -64,6 +64,19 @@ def parser() -> argparse.ArgumentParser:
     bench.add_argument("--runs", type=int, default=3, help="measured repetitions per prompt")
     bench.add_argument("--warmup", type=int, default=1, help="unmeasured warmup calls")
     bench.add_argument("--output", required=True, help="write JSON report to this path")
+    lab = subs.add_parser("model-lab", help="compare installed local models on browser evidence tasks")
+    lab.add_argument("--cases", default=str(Path(__file__).resolve().parent / "fixtures/browser-harness-20.jsonl"),
+                     help="bounded task JSONL; defaults to packaged 20-task browser fixture")
+    lab.add_argument("--model", action="append", default=[], help="explicit installed model; repeat up to four times")
+    lab.add_argument("--backend", choices=["ollama", "openai"], default="ollama")
+    lab.add_argument("--ollama-url", default="http://127.0.0.1:11434")
+    lab.add_argument("--openai-url", default="http://127.0.0.1:8080")
+    lab.add_argument("--limit", type=int, default=None, help="evaluate only the first N cases")
+    lab.add_argument("--runs", type=int, default=1, help="1–3 runs per model and case")
+    lab.add_argument("--timeout", type=float, default=180, help="local backend request timeout in seconds, 5–600")
+    lab.add_argument("--hardware", default="unspecified", help="brief operator-provided hardware description")
+    lab.add_argument("--output", help="JSON report path; contains no prompts or model responses")
+    lab.add_argument("--dry-run", action="store_true", help="validate fixture and count cases without contacting a model")
     evidence = subs.add_parser("evidence", parents=[common],
                                help="extract verifiable quotes from indexed sources; never synthesize claims")
     evidence.add_argument("question", help="question for evidence selection")
@@ -312,6 +325,35 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Wrote {report['successful_samples']} timing samples, "
                   f"{report['failed_samples']} errors to {args.output}")
             if report["failed_samples"]:
+                return 1
+        elif args.command == "model-lab":
+            from .model_lab import load_cases, run_lab, save_lab_report
+            cases, digest = load_cases(args.cases)
+            if args.limit is not None:
+                if not 1 <= args.limit <= len(cases):
+                    raise ValueError("--limit must be within the available fixture cases")
+                cases = cases[:args.limit]
+            if args.dry_run:
+                from collections import Counter
+                print(json.dumps({"mode": "dry_run", "cases": len(cases),
+                                  "fixture_sha256": digest,
+                                  "categories": dict(Counter(c["category"] for c in cases)),
+                                  "notice": "No model, network, or browser was used."}, indent=2))
+                return 0
+            if not args.output:
+                raise ValueError("--output is required for a real model-lab run")
+            if not args.model:
+                raise ValueError("Specify at least one already-installed --model")
+            base_url = args.ollama_url if args.backend == "ollama" else args.openai_url
+            report = run_lab(cases, digest, models=args.model, backend=args.backend,
+                             base_url=base_url, runs=args.runs,
+                             timeout=args.timeout, hardware=args.hardware)
+            save_lab_report(report, args.output)
+            completed = sum(r["status"] == "completed" for r in report["samples"])
+            passed = sum(r["passed"] for r in report["samples"])
+            print(f"Model Lab: {passed}/{completed} completed samples passed narrow contract checks; "
+                  f"wrote {args.output}. No actions executed.")
+            if completed != len(report["samples"]):
                 return 1
         elif args.command == "evidence":
             from .evidence import create_receipt, save_receipt
