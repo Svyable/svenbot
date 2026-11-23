@@ -1,3 +1,15 @@
+### Model Lab: compare your open-weight local brains (v0.7.6)
+
+Model Lab provides a **reproducible, 20-case synthetic browser research task benchmark** to compare an already-installed smaller Ollama model with Inkling 2 Mini or any supported local OpenAI-compatible model. Scores cover source fidelity, strict JSON schema, read-only tool proposals, simple answer-term checks, and errors/latency. This is **not** a general-intelligence benchmark, real browser automation, or evidence that an 8 GB quantization matches the original on end tasks. The benchmark never downloads models, executes browser tools, persists page text or sends data to a remote host.
+
+```sh
+svenbot model-lab --dry-run
+svenbot model-lab --model qwen3.5:4b --model inkling-2-mini \
+  --limit 4 --output ./model-lab-smoke.json
+```
+
+Only include model tags returned by your local `ollama list`, and start with a small smoke run. See [the benchmark guide](docs/benchmarks/model-lab.md) for exact scoring, caveats and full instructions. **Chrome Companion remains v0.1.4**; the model-lab research path runs in the local Python CLI and does not change any browser permission.
+
 ### Chrome Companion 0.1.4: Page Atlas (Svenbot 0.7.5)
 
 The optional Chrome side panel now distributes a bounded text capture over long webpages (including late caveats), reports sampling/truncation, fingerprints the normalized in-memory snapshot with SHA-256 and refuses to present mismatched source references as exact quotes. No new browser permissions, cloud requests, stored page text or automatic model downloads are introduced. **A fingerprint does not authenticate the website or prove the model's claims**; source previews still require user review. See [`extension/README.md`](extension/README.md) and [`extension/reader_dom_e2e.py`](extension/reader_dom_e2e.py) for QA. Real installed Chrome/model hardware validation and third-party readability bake-offs are still open.
