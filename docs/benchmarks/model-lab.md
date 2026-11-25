@@ -8,6 +8,8 @@
 
 We should compare a fast small model and a more capable local Inkling using the **same source-grounded task contract**, rather than route based on parameter count or marketing benchmarks.
 
+[Bonsai evaluation runbook](bonsai-evaluation.md): optional Q2_0 candidate via the existing local OpenAI-compatible backend, with explicit hardware and promotion gates.
+
 ## Run the offline audit (no model installed)
 
 ```sh
